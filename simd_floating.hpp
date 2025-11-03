@@ -1,0 +1,1249 @@
+﻿#ifndef _FOYE_SIMD_FLOATING_HPP_
+#define _FOYE_SIMD_FLOATING_HPP_
+#pragma once
+
+#include "simd_def.hpp"
+#include "simd_utility.hpp"
+#include "simd_cvt.hpp"
+
+namespace fyx::simd
+{
+    struct MXCSR_Guard
+    {
+        MXCSR_Guard() noexcept : original_mxcsr(_mm_getcsr()) { }
+        ~MXCSR_Guard() noexcept { _mm_setcsr(original_mxcsr); }
+
+        MXCSR_Guard(const MXCSR_Guard&) = delete;
+        MXCSR_Guard& operator=(const MXCSR_Guard&) = delete;
+
+        MXCSR_Guard(MXCSR_Guard&& other) noexcept
+            : original_mxcsr(other.original_mxcsr) 
+        {
+            other.original_mxcsr = 0;
+        }
+
+        bool invalid_operation() const noexcept { return _mm_getcsr() & _MM_EXCEPT_INVALID; }
+        bool divide_zero() const noexcept { return _mm_getcsr() & _MM_EXCEPT_DIV_ZERO; }
+        bool overflow() const noexcept { return _mm_getcsr() & _MM_EXCEPT_OVERFLOW; }
+        bool underflow() const noexcept { return _mm_getcsr() & _MM_EXCEPT_UNDERFLOW; }
+        bool inexact() const noexcept { return _mm_getcsr() & _MM_EXCEPT_INEXACT; }
+        bool denormal() const noexcept { return _mm_getcsr() & _MM_EXCEPT_DENORM; }
+
+        bool any_exception() const noexcept { return _mm_getcsr() & _MM_EXCEPT_MASK; }
+
+        void clear_exceptions() noexcept 
+        {
+            unsigned int mxcsr = _mm_getcsr();
+            mxcsr &= ~_MM_EXCEPT_MASK;
+            _mm_setcsr(mxcsr);
+        }
+
+        void set_rounding_mode(unsigned int mode) noexcept 
+        {
+            unsigned int mxcsr = _mm_getcsr();
+            mxcsr &= ~_MM_ROUND_MASK;
+            mxcsr |= (mode & _MM_ROUND_MASK);
+            _mm_setcsr(mxcsr);
+        }
+
+        unsigned int current_rounding_mode() const noexcept 
+        {
+            return _mm_getcsr() & _MM_ROUND_MASK;
+        }
+
+        unsigned int get_original() const noexcept 
+        {
+            return original_mxcsr;
+        }
+
+        unsigned int get_current() const noexcept 
+        {
+            return _mm_getcsr();
+        }
+
+    private:
+        unsigned int original_mxcsr;
+    };
+
+    mask_from_simd_t<float32x4> not_nan(float32x4 input) { return mask_from_simd_t<float32x4>(_mm_cmpord_ps(input.data, input.data)); }
+    mask_from_simd_t<float64x2> not_nan(float64x2 input) { return mask_from_simd_t<float64x2>(_mm_cmpord_pd(input.data, input.data)); }
+    mask_from_simd_t<float32x8> not_nan(float32x8 input) { return mask_from_simd_t<float32x8>(_mm256_cmp_ps(input.data, input.data, _CMP_ORD_Q)); }
+    mask_from_simd_t<float64x4> not_nan(float64x4 input) { return mask_from_simd_t<float64x4>(_mm256_cmp_pd(input.data, input.data, _CMP_ORD_Q)); }
+
+    mask_from_simd_t<float32x4> not_inf(float32x4 input)
+    {
+        const __m128i inf_mask = _mm_set1_epi32(0x7F800000);
+        __m128i bits = _mm_castps_si128(input.data);
+
+        __m128i abs_bits = _mm_and_si128(bits, _mm_set1_epi32(0x7FFFFFFF));
+        __m128i is_inf = _mm_cmpeq_epi32(abs_bits, inf_mask);
+        return mask_from_simd_t<float32x4>{ _mm_castsi128_ps(_mm_xor_si128(is_inf, _mm_set1_epi32(0xFFFFFFFF))) };
+    }
+
+    mask_from_simd_t<float64x2> not_inf(float64x2 input)
+    {
+        const __m128i inf_mask = _mm_set1_epi64x(0x7FF0000000000000);
+        __m128i bits = _mm_castpd_si128(input.data);
+        __m128i abs_bits = _mm_and_si128(bits, _mm_set1_epi64x(0x7FFFFFFFFFFFFFFF));
+        __m128i is_inf = _mm_cmpeq_epi64(abs_bits, inf_mask);
+        return mask_from_simd_t<float64x2>{ _mm_castsi128_pd(_mm_xor_si128(is_inf, _mm_set1_epi64x(0xFFFFFFFFFFFFFFFF))) };
+    }
+
+    mask_from_simd_t<float32x8> not_inf(float32x8 input)
+    {
+        const __m256i inf_mask = _mm256_set1_epi32(0x7F800000);
+        __m256i bits = _mm256_castps_si256(input.data);
+        __m256i abs_bits = _mm256_and_si256(bits, _mm256_set1_epi32(0x7FFFFFFF));
+        __m256i is_inf = _mm256_cmpeq_epi32(abs_bits, inf_mask);
+        return mask_from_simd_t<float32x8>{ _mm256_castsi256_ps(_mm256_xor_si256(is_inf, _mm256_set1_epi32(0xFFFFFFFF))) };
+    }
+
+    mask_from_simd_t<float64x4> not_inf(float64x4 input)
+    {
+        const __m256i inf_mask = _mm256_set1_epi64x(0x7FF0000000000000);
+        __m256i bits = _mm256_castpd_si256(input.data);
+        __m256i abs_bits = _mm256_and_si256(bits, _mm256_set1_epi64x(0x7FFFFFFFFFFFFFFF));
+        __m256i is_inf = _mm256_cmpeq_epi64(abs_bits, inf_mask);
+        return mask_from_simd_t<float64x4>{ _mm256_castsi256_pd(_mm256_xor_si256(is_inf, _mm256_set1_epi64x(0xFFFFFFFFFFFFFFFF))) };
+    }
+
+
+
+    mask_from_simd_t<float32x4> where_close(float32x4 lhs, float32x4 rhs, float32x4 relative_tolerance, float32x4 absolute_tolerance)
+    {
+        const __m128 mask = _mm_castsi128_ps(_mm_set1_epi32(0x7FFFFFFF));
+        const __m128 zero = _mm_setzero_ps();
+        __m128 diff = _mm_sub_ps(lhs.data, rhs.data);
+        __m128 abs_diff = _mm_and_ps(diff, mask);
+
+        __m128 both_zero = _mm_and_ps(
+            _mm_cmp_ps(lhs.data, zero, _CMP_EQ_OQ),
+            _mm_cmp_ps(rhs.data, zero, _CMP_EQ_OQ)
+        );
+
+        __m128 abs_lhs = _mm_and_ps(lhs.data, mask);
+        __m128 abs_rhs = _mm_and_ps(rhs.data, mask);
+        __m128 max_abs = _mm_max_ps(abs_lhs, abs_rhs);
+
+        __m128 relative_threshold = _mm_mul_ps(relative_tolerance.data, max_abs);
+        __m128 total_threshold = _mm_add_ps(absolute_tolerance.data, relative_threshold);
+
+        __m128 is_close = _mm_cmp_ps(abs_diff, total_threshold, _CMP_LE_OQ);
+        __m128 result = _mm_or_ps(is_close, both_zero);
+
+        __m128 lhs_finite = _mm_cmp_ps(lhs.data, lhs.data, _CMP_EQ_OQ);
+        __m128 rhs_finite = _mm_cmp_ps(rhs.data, rhs.data, _CMP_EQ_OQ);
+        __m128 both_finite = _mm_and_ps(lhs_finite, rhs_finite);
+
+        return mask_from_simd_t<float32x4>{ _mm_and_ps(result, both_finite) };
+    }
+
+    mask_from_simd_t<float32x8> where_close(float32x8 lhs, float32x8 rhs, float32x8 relative_tolerance, float32x8 absolute_tolerance)
+    {
+        const __m256 mask = _mm256_castsi256_ps(_mm256_set1_epi32(0x7FFFFFFF));
+        const __m256 zero = _mm256_setzero_ps();
+        __m256 diff = _mm256_sub_ps(lhs.data, rhs.data);
+        __m256 abs_diff = _mm256_and_ps(diff, mask);
+
+        __m256 both_zero = _mm256_and_ps(
+            _mm256_cmp_ps(lhs.data, zero, _CMP_EQ_OQ),
+            _mm256_cmp_ps(rhs.data, zero, _CMP_EQ_OQ)
+        );
+
+        __m256 abs_lhs = _mm256_and_ps(lhs.data, mask);
+        __m256 abs_rhs = _mm256_and_ps(rhs.data, mask);
+        __m256 max_abs = _mm256_max_ps(abs_lhs, abs_rhs);
+
+        __m256 relative_threshold = _mm256_mul_ps(relative_tolerance.data, max_abs);
+        __m256 total_threshold = _mm256_add_ps(absolute_tolerance.data, relative_threshold);
+
+        __m256 is_close = _mm256_cmp_ps(abs_diff, total_threshold, _CMP_LE_OQ);
+
+        __m256 result = _mm256_or_ps(is_close, both_zero);
+
+        __m256 lhs_finite = _mm256_cmp_ps(lhs.data, lhs.data, _CMP_EQ_OQ);
+        __m256 rhs_finite = _mm256_cmp_ps(rhs.data, rhs.data, _CMP_EQ_OQ);
+        __m256 both_finite = _mm256_and_ps(lhs_finite, rhs_finite);
+
+        return mask_from_simd_t<float32x8>{ _mm256_and_ps(result, both_finite) };
+    }
+
+    mask_from_simd_t<float64x4> where_close(float64x4 lhs, float64x4 rhs, float64x4 relative_tolerance, float64x4 absolute_tolerance)
+    {
+        const __m256d mask = _mm256_castsi256_pd(_mm256_set1_epi64x(0x7FFFFFFFFFFFFFFF));
+        const __m256d zero = _mm256_setzero_pd();
+        __m256d diff = _mm256_sub_pd(lhs.data, rhs.data);
+        __m256d abs_diff = _mm256_and_pd(diff, mask);
+
+        __m256d both_zero = _mm256_and_pd(
+            _mm256_cmp_pd(lhs.data, zero, _CMP_EQ_OQ),
+            _mm256_cmp_pd(rhs.data, zero, _CMP_EQ_OQ)
+        );
+
+        __m256d abs_lhs = _mm256_and_pd(lhs.data, mask);
+        __m256d abs_rhs = _mm256_and_pd(rhs.data, mask);
+        __m256d max_abs = _mm256_max_pd(abs_lhs, abs_rhs);
+
+        __m256d relative_threshold = _mm256_mul_pd(relative_tolerance.data, max_abs);
+        __m256d total_threshold = _mm256_add_pd(absolute_tolerance.data, relative_threshold);
+
+        __m256d is_close = _mm256_cmp_pd(abs_diff, total_threshold, _CMP_LE_OQ);
+        __m256d result = _mm256_or_pd(is_close, both_zero);
+
+        __m256d lhs_finite = _mm256_cmp_pd(lhs.data, lhs.data, _CMP_EQ_OQ);
+        __m256d rhs_finite = _mm256_cmp_pd(rhs.data, rhs.data, _CMP_EQ_OQ);
+        __m256d both_finite = _mm256_and_pd(lhs_finite, rhs_finite);
+
+        return mask_from_simd_t<float64x4>{ _mm256_and_pd(result, both_finite) };
+    }
+
+    mask_from_simd_t<float64x2> where_close(float64x2 lhs, float64x2 rhs, float64x2 relative_tolerance, float64x2 absolute_tolerance)
+    {
+        const __m128d mask = _mm_castsi128_pd(_mm_set1_epi64x(0x7FFFFFFFFFFFFFFF));
+        const __m128d zero = _mm_setzero_pd();
+        __m128d diff = _mm_sub_pd(lhs.data, rhs.data);
+        __m128d abs_diff = _mm_and_pd(diff, mask);
+
+        __m128d both_zero = _mm_and_pd(
+            _mm_cmp_pd(lhs.data, zero, _CMP_EQ_OQ),
+            _mm_cmp_pd(rhs.data, zero, _CMP_EQ_OQ)
+        );
+
+        __m128d lhs_finite = _mm_cmp_pd(lhs.data, lhs.data, _CMP_EQ_OQ);
+        __m128d rhs_finite = _mm_cmp_pd(rhs.data, rhs.data, _CMP_EQ_OQ);
+        __m128d both_finite = _mm_and_pd(lhs_finite, rhs_finite);
+
+        __m128d abs_lhs = _mm_and_pd(lhs.data, mask);
+        __m128d abs_rhs = _mm_and_pd(rhs.data, mask);
+        __m128d max_abs = _mm_max_pd(abs_lhs, abs_rhs);
+
+        __m128d threshold = _mm_add_pd(absolute_tolerance.data,
+            _mm_mul_pd(relative_tolerance.data, max_abs));
+
+        __m128d is_close = _mm_cmp_pd(abs_diff, threshold, _CMP_LE_OQ);
+        __m128d result = _mm_or_pd(is_close, both_zero);
+
+        return mask_from_simd_t<float64x2>{ _mm_and_pd(result, both_finite) };
+    }
+
+
+    float32x8 copysign(float32x8 source, float32x8 sign)
+    {
+        const __m256 value_mask = _mm256_castsi256_ps(_mm256_set1_epi32(0x7FFFFFFF));
+        const __m256 sign_mask = _mm256_castsi256_ps(_mm256_set1_epi32(0x80000000));
+
+        __m256 magnitude = _mm256_and_ps(source.data, value_mask);
+        __m256 new_sign = _mm256_and_ps(sign.data, sign_mask);
+        __m256 result = _mm256_or_ps(magnitude, new_sign);
+        return float32x8{ result };
+    }
+
+    float64x4 copysign_pd(float64x4 source, float64x4 sign) 
+    {
+        const __m256d value_mask = _mm256_castsi256_pd(_mm256_set1_epi64x(0x7FFFFFFFFFFFFFFF));
+        const __m256d sign_mask = _mm256_castsi256_pd(_mm256_set1_epi64x(0x8000000000000000));
+
+        __m256d magnitude = _mm256_and_pd(source, value_mask);
+        __m256d new_sign = _mm256_and_pd(sign, sign_mask);
+        __m256d result = _mm256_or_pd(magnitude, new_sign);
+        return float64x4{ result };
+    }
+
+    float32x4 copysign(float32x4 source, float32x4 sign)
+    {
+        const __m128 value_mask = _mm_castsi128_ps(_mm_set1_epi32(0x7FFFFFFF));
+        const __m128 sign_mask = _mm_castsi128_ps(_mm_set1_epi32(0x80000000));
+
+        __m128 magnitude = _mm_and_ps(source.data, value_mask);
+        __m128 new_sign = _mm_and_ps(sign.data, sign_mask);
+        __m128 result = _mm_or_ps(magnitude, new_sign);
+        return float32x4{ result };
+    }
+
+    float64x2 copysign(float64x2 source, float64x2 sign)
+    {
+        const __m128d value_mask = _mm_castsi128_pd(_mm_set1_epi64x(0x7FFFFFFFFFFFFFFF));
+        const __m128d sign_mask = _mm_castsi128_pd(_mm_set1_epi64x(0x8000000000000000));
+
+        __m128d magnitude = _mm_and_pd(source, value_mask);
+        __m128d new_sign = _mm_and_pd(sign, sign_mask);
+        __m128d result = _mm_or_pd(magnitude, new_sign);
+        return float64x2{ result };
+    }
+
+#if defined(_FOYE_SIMD_HAS_FP16_)
+    float16x8 copysign(float16x8 source, float16x8 sign)
+    {
+        const __m128i value_mask = _mm_set1_epi16(0x7FFF);
+        const __m128i sign_mask = _mm_set1_epi16(0x8000);
+
+        return float16x8{ _mm_or_si128(
+            _mm_and_si128(source.data, value_mask),
+            _mm_and_si128(sign.data, sign_mask)
+        ) };
+    }
+
+    float16x16 copysign(float16x16 source, float16x16 sign)
+    {
+        const __m256i value_mask = _mm256_set1_epi16(0x7FFF);
+        const __m256i sign_mask = _mm256_set1_epi16(0x8000);
+
+        return float16x16{ _mm256_or_si256(
+            _mm256_and_si256(source, value_mask),
+            _mm256_and_si256(sign, sign_mask)
+        ) };
+    }
+#endif
+#if defined(_FOYE_SIMD_HAS_BF16_)
+    bfloat16x8 copysign(bfloat16x8 source, bfloat16x8 sign)
+    {
+        const __m128i value_mask = _mm_set1_epi16(0x7FFF);
+        const __m128i sign_mask = _mm_set1_epi16(0x8000);
+
+        return bfloat16x8{ _mm_or_si128(
+            _mm_and_si128(source.data, value_mask),
+            _mm_and_si128(sign.data, sign_mask)
+        ) };
+    }
+
+    bfloat16x16 copysign(bfloat16x16 source, bfloat16x16 sign)
+    {
+        const __m256i value_mask = _mm256_set1_epi16(0x7FFF);
+        const __m256i sign_mask = _mm256_set1_epi16(0x8000);
+
+        return bfloat16x16{ _mm256_or_si256(
+            _mm256_and_si256(source, value_mask),
+            _mm256_and_si256(sign, sign_mask)
+        ) };
+    }
+#endif
+
+#if 0
+    float32x8 fmod(float32x8 x_, float32x8 y_)
+    {
+        __m256 x = x_.data;
+        __m256 y = y_.data;
+
+        const __m256 zero = _mm256_set1_ps(0.0f);
+        const __m256 na_zero = _mm256_set1_ps(-0.0f);
+
+        const __m256 nan = _mm256_set1_ps(std::numeric_limits<float>::quiet_NaN());
+        const __m256 inf = _mm256_set1_ps(std::numeric_limits<float>::infinity());
+        
+        __m256 mask_y_zero = _mm256_cmp_ps(y, zero, _CMP_EQ_OQ);
+
+        __m256 abs_x = _mm256_andnot_ps(na_zero, x);
+        __m256 abs_y = _mm256_andnot_ps(na_zero, y);
+
+        __m256 mask_x_inf = _mm256_cmp_ps(abs_x, inf, _CMP_EQ_OQ);
+        __m256 mask_y_inf = _mm256_cmp_ps(abs_y, inf, _CMP_EQ_OQ);
+
+        __m256 special_mask = _mm256_or_ps(mask_y_zero,
+            _mm256_and_ps(mask_x_inf,
+                _mm256_andnot_ps(mask_y_inf,
+                    _mm256_set1_ps(1.0f))));
+
+        __m256 mask_abs_lt = _mm256_cmp_ps(abs_x, abs_y, _CMP_LT_OQ);
+
+        __m256 mask_abs_eq = _mm256_cmp_ps(abs_x, abs_y, _CMP_EQ_OQ);
+        __m256 zero_with_sign = _mm256_and_ps(x, na_zero);
+
+        __m256 quotient = _mm256_div_ps(x, y);
+
+        __m256 integer_part = _mm256_round_ps(quotient, _MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC);
+        __m256 remainder = _mm256_sub_ps(x, _mm256_mul_ps(integer_part, y));
+
+        remainder = _mm256_blendv_ps(remainder, x, mask_abs_lt);
+        remainder = _mm256_blendv_ps(remainder, zero_with_sign, mask_abs_eq);
+        remainder = _mm256_blendv_ps(remainder, nan, special_mask);
+        return float32x8{ remainder };
+    }
+#endif
+
+
+    float32x8 fma(float32x8 mul_left, float32x8 mul_right, float32x8 add_right) { return float32x8(_mm256_fmadd_ps(mul_left.data, mul_right.data, add_right.data)); }
+    float64x4 fma(float64x4 mul_left, float64x4 mul_right, float64x4 add_right) { return float64x4(_mm256_fmadd_pd(mul_left.data, mul_right.data, add_right.data)); }
+    float32x4 fma(float32x4 mul_left, float32x4 mul_right, float32x4 add_right) { return float32x4(_mm_fmadd_ps(mul_left.data, mul_right.data, add_right.data)); }
+    float64x2 fma(float64x2 mul_left, float64x2 mul_right, float64x2 add_right) { return float64x2(_mm_fmadd_pd(mul_left.data, mul_right.data, add_right.data)); }
+#if defined(_FOYE_SIMD_HAS_FP16_)
+    float16x8 fma(float16x8 mul_left, float16x8 mul_right, float16x8 add_right)
+    {
+        return float16x8{ cvt8lane_fp32_to_fp16(
+            _mm256_fmadd_ps(cvt8lane_fp16_to_fp32(mul_left.data),
+                            cvt8lane_fp16_to_fp32(mul_right.data),
+                            cvt8lane_fp16_to_fp32(add_right.data))) };
+    }
+
+    float16x16 fma(float16x16 mul_left, float16x16 mul_right, float16x16 add_right)
+    {
+        return float16x16{ FOYE_SIMD_MERGE_i(
+            cvt8lane_fp32_to_fp16(_mm256_fmadd_ps(
+                cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(mul_left.data)),
+                cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(mul_right.data)),
+                cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(add_right.data)))),
+            cvt8lane_fp32_to_fp16(_mm256_fmadd_ps(
+                cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(mul_left.data)),
+                cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(mul_right.data)),
+                cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(add_right.data))))) };
+    }
+#endif
+#if defined(_FOYE_SIMD_HAS_BF16_)
+    bfloat16x8 fma(bfloat16x8 mul_left, bfloat16x8 mul_right, bfloat16x8 add_right)
+    {
+        __m256 vres32 = _mm256_fmadd_ps(cvt8lane_bf16_to_fp32(mul_left.data),
+            cvt8lane_bf16_to_fp32(mul_right.data), cvt8lane_bf16_to_fp32(add_right.data));
+        return bfloat16x8{ cvt8lane_fp32_to_bf16(vres32) };
+    }
+
+    bfloat16x16 fma(bfloat16x16 mul_left, bfloat16x16 mul_right, bfloat16x16 add_right)
+    {
+        return bfloat16x16{ FOYE_SIMD_MERGE_i(
+            cvt8lane_fp32_to_bf16(_mm256_fmadd_ps(
+                cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(mul_left.data)),
+                cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(mul_right.data)),
+                cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(add_right.data)))),
+            cvt8lane_fp32_to_bf16(_mm256_fmadd_ps(
+                cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(mul_left.data)),
+                cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(mul_right.data)),
+                cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(add_right.data))))) };
+    }
+#endif
+
+    float32x8 fms(float32x8 mul_left, float32x8 mul_right, float32x8 sub_right) { return float32x8(_mm256_fmsub_ps(mul_left.data, mul_right.data, sub_right.data)); }
+    float64x4 fms(float64x4 mul_left, float64x4 mul_right, float64x4 sub_right) { return float64x4(_mm256_fmsub_pd(mul_left.data, mul_right.data, sub_right.data)); }
+    float32x4 fms(float32x4 mul_left, float32x4 mul_right, float32x4 sub_right) { return float32x4(_mm_fmsub_ps(mul_left.data, mul_right.data, sub_right.data)); }
+    float64x2 fms(float64x2 mul_left, float64x2 mul_right, float64x2 sub_right) { return float64x2(_mm_fmsub_pd(mul_left.data, mul_right.data, sub_right.data)); }
+#if defined(_FOYE_SIMD_HAS_FP16_)
+    float16x8 fms(float16x8 mul_left, float16x8 mul_right, float16x8 sub_right)
+    {
+        return float16x8{ cvt8lane_fp32_to_fp16(
+            _mm256_fmsub_ps(cvt8lane_fp16_to_fp32(mul_left.data),
+                            cvt8lane_fp16_to_fp32(mul_right.data),
+                            cvt8lane_fp16_to_fp32(sub_right.data))) };
+    }
+
+    float16x16 fms(float16x16 mul_left, float16x16 mul_right, float16x16 sub_right)
+    {
+        return float16x16{ FOYE_SIMD_MERGE_i(
+            cvt8lane_fp32_to_fp16(_mm256_fmsub_ps(
+                cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(mul_left.data)),
+                cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(mul_right.data)),
+                cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(sub_right.data)))),
+            cvt8lane_fp32_to_fp16(_mm256_fmsub_ps(
+                cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(mul_left.data)),
+                cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(mul_right.data)),
+                cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(sub_right.data))))) };
+    }
+#endif
+#if defined(_FOYE_SIMD_HAS_BF16_)
+    bfloat16x8 fms(bfloat16x8 mul_left, bfloat16x8 mul_right, bfloat16x8 sub_right)
+    {
+        __m256 vres32 = _mm256_fmsub_ps(cvt8lane_bf16_to_fp32(mul_left.data),
+            cvt8lane_bf16_to_fp32(mul_right.data), cvt8lane_bf16_to_fp32(sub_right.data));
+        return bfloat16x8{ cvt8lane_fp32_to_bf16(vres32) };
+    }
+
+    bfloat16x16 fms(bfloat16x16 mul_left, bfloat16x16 mul_right, bfloat16x16 sub_right)
+    {
+        return bfloat16x16{ FOYE_SIMD_MERGE_i(
+            cvt8lane_fp32_to_bf16(_mm256_fmsub_ps(
+                cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(mul_left.data)),
+                cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(mul_right.data)),
+                cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(sub_right.data)))),
+            cvt8lane_fp32_to_bf16(_mm256_fmsub_ps(
+                cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(mul_left.data)),
+                cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(mul_right.data)),
+                cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(sub_right.data))))) };
+    }
+#endif
+
+    float32x8 fnma(float32x8 mul_left, float32x8 mul_right, float32x8 add_right) { return float32x8(_mm256_fnmadd_ps(mul_left.data, mul_right.data, add_right.data)); }
+    float64x4 fnma(float64x4 mul_left, float64x4 mul_right, float64x4 add_right) { return float64x4(_mm256_fnmadd_pd(mul_left.data, mul_right.data, add_right.data)); }
+    float32x4 fnma(float32x4 mul_left, float32x4 mul_right, float32x4 add_right) { return float32x4(_mm_fnmadd_ps(mul_left.data, mul_right.data, add_right.data)); }
+    float64x2 fnma(float64x2 mul_left, float64x2 mul_right, float64x2 add_right) { return float64x2(_mm_fnmadd_pd(mul_left.data, mul_right.data, add_right.data)); }
+#if defined(_FOYE_SIMD_HAS_FP16_)
+    float16x8 fnma(float16x8 mul_left, float16x8 mul_right, float16x8 add_right)
+    {
+        return float16x8{ cvt8lane_fp32_to_fp16(
+            _mm256_fnmadd_ps(cvt8lane_fp16_to_fp32(mul_left.data),
+                            cvt8lane_fp16_to_fp32(mul_right.data),
+                            cvt8lane_fp16_to_fp32(add_right.data))) };
+    }
+
+    float16x16 fnma(float16x16 mul_left, float16x16 mul_right, float16x16 add_right)
+    {
+        return float16x16{ FOYE_SIMD_MERGE_i(
+            cvt8lane_fp32_to_fp16(_mm256_fnmadd_ps(
+                cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(mul_left.data)),
+                cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(mul_right.data)),
+                cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(add_right.data)))),
+            cvt8lane_fp32_to_fp16(_mm256_fnmadd_ps(
+                cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(mul_left.data)),
+                cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(mul_right.data)),
+                cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(add_right.data))))) };
+    }
+#endif
+#if defined(_FOYE_SIMD_HAS_BF16_)
+    bfloat16x8 fnma(bfloat16x8 mul_left, bfloat16x8 mul_right, bfloat16x8 add_right)
+    {
+        __m256 vres32 = _mm256_fnmadd_ps(cvt8lane_bf16_to_fp32(mul_left.data),
+            cvt8lane_bf16_to_fp32(mul_right.data), cvt8lane_bf16_to_fp32(add_right.data));
+        return bfloat16x8{ cvt8lane_fp32_to_bf16(vres32) };
+    }
+
+    bfloat16x16 fnma(bfloat16x16 mul_left, bfloat16x16 mul_right, bfloat16x16 add_right)
+    {
+        return bfloat16x16{ FOYE_SIMD_MERGE_i(
+            cvt8lane_fp32_to_bf16(_mm256_fnmadd_ps(
+                cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(mul_left.data)),
+                cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(mul_right.data)),
+                cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(add_right.data)))),
+            cvt8lane_fp32_to_bf16(_mm256_fnmadd_ps(
+                cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(mul_left.data)),
+                cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(mul_right.data)),
+                cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(add_right.data))))) };
+    }
+#endif
+
+    float32x8 fnms(float32x8 mul_left, float32x8 mul_right, float32x8 sub_right) { return float32x8(_mm256_fnmsub_ps(mul_left.data, mul_right.data, sub_right.data)); }
+    float64x4 fnms(float64x4 mul_left, float64x4 mul_right, float64x4 sub_right) { return float64x4(_mm256_fnmsub_pd(mul_left.data, mul_right.data, sub_right.data)); }
+    float32x4 fnms(float32x4 mul_left, float32x4 mul_right, float32x4 sub_right) { return float32x4(_mm_fnmsub_ps(mul_left.data, mul_right.data, sub_right.data)); }
+    float64x2 fnms(float64x2 mul_left, float64x2 mul_right, float64x2 sub_right) { return float64x2(_mm_fnmsub_pd(mul_left.data, mul_right.data, sub_right.data)); }
+#if defined(_FOYE_SIMD_HAS_FP16_)
+    float16x8 fnms(float16x8 mul_left, float16x8 mul_right, float16x8 sub_right)
+    {
+        return float16x8{ cvt8lane_fp32_to_fp16(
+            _mm256_fnmsub_ps(cvt8lane_fp16_to_fp32(mul_left.data),
+                            cvt8lane_fp16_to_fp32(mul_right.data),
+                            cvt8lane_fp16_to_fp32(sub_right.data))) };
+    }
+
+    float16x16 fnms(float16x16 mul_left, float16x16 mul_right, float16x16 sub_right)
+    {
+        return float16x16{ FOYE_SIMD_MERGE_i(
+            cvt8lane_fp32_to_fp16(_mm256_fnmsub_ps(
+                cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(mul_left.data)),
+                cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(mul_right.data)),
+                cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(sub_right.data)))),
+            cvt8lane_fp32_to_fp16(_mm256_fnmsub_ps(
+                cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(mul_left.data)),
+                cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(mul_right.data)),
+                cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(sub_right.data))))) };
+    }
+#endif
+#if defined(_FOYE_SIMD_HAS_BF16_)
+    bfloat16x8 fnms(bfloat16x8 mul_left, bfloat16x8 mul_right, bfloat16x8 sub_right)
+    {
+        __m256 vres32 = _mm256_fnmsub_ps(cvt8lane_bf16_to_fp32(mul_left.data),
+            cvt8lane_bf16_to_fp32(mul_right.data), cvt8lane_bf16_to_fp32(sub_right.data));
+        return bfloat16x8{ cvt8lane_fp32_to_bf16(vres32) };
+    }
+
+    bfloat16x16 fnms(bfloat16x16 mul_left, bfloat16x16 mul_right, bfloat16x16 sub_right)
+    {
+        return bfloat16x16{ FOYE_SIMD_MERGE_i(
+            cvt8lane_fp32_to_bf16(_mm256_fnmsub_ps(
+                cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(mul_left.data)),
+                cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(mul_right.data)),
+                cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(sub_right.data)))),
+            cvt8lane_fp32_to_bf16(_mm256_fnmsub_ps(
+                cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(mul_left.data)),
+                cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(mul_right.data)),
+                cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(sub_right.data))))) };
+    }
+#endif
+
+    float32x8 fmaddsub(float32x8 mul_left, float32x8 mul_right, float32x8 rhs) { return float32x8{ _mm256_fmaddsub_ps(mul_left.data, mul_right.data, rhs.data) }; }
+    float32x4 fmaddsub(float32x4 mul_left, float32x4 mul_right, float32x4 rhs) { return float32x4{ _mm_fmaddsub_ps(mul_left.data, mul_right.data, rhs.data) }; }
+    float64x4 fmaddsub(float64x4 mul_left, float64x4 mul_right, float64x4 rhs) { return float64x4{ _mm256_fmaddsub_pd(mul_left.data, mul_right.data, rhs.data) }; }
+    float64x2 fmaddsub(float64x2 mul_left, float64x2 mul_right, float64x2 rhs) { return float64x2{ _mm_fmaddsub_pd(mul_left.data, mul_right.data, rhs.data) }; }
+#if defined(_FOYE_SIMD_HAS_FP16_)
+    float16x8 fmaddsub(float16x8 mul_left, float16x8 mul_right, float16x8 rhs)
+    {
+        return float16x8{ cvt8lane_fp32_to_fp16(
+            _mm256_fmaddsub_ps(cvt8lane_fp16_to_fp32(mul_left.data),
+                            cvt8lane_fp16_to_fp32(mul_right.data),
+                            cvt8lane_fp16_to_fp32(rhs.data))) };
+    }
+
+    float16x16 fmaddsub(float16x16 mul_left, float16x16 mul_right, float16x16 rhs)
+    {
+        return float16x16{ FOYE_SIMD_MERGE_i(
+            cvt8lane_fp32_to_fp16(_mm256_fmaddsub_ps(
+                cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(mul_left.data)),
+                cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(mul_right.data)),
+                cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(rhs.data)))),
+            cvt8lane_fp32_to_fp16(_mm256_fmaddsub_ps(
+                cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(mul_left.data)),
+                cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(mul_right.data)),
+                cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(rhs.data))))) };
+    }
+#endif
+#if defined(_FOYE_SIMD_HAS_BF16_)
+    bfloat16x8 fmaddsub(bfloat16x8 mul_left, bfloat16x8 mul_right, bfloat16x8 rhs)
+    {
+        __m256 vres32 = _mm256_fmaddsub_ps(cvt8lane_bf16_to_fp32(mul_left.data),
+            cvt8lane_bf16_to_fp32(mul_right.data), cvt8lane_bf16_to_fp32(rhs.data));
+        return bfloat16x8{ cvt8lane_fp32_to_bf16(vres32) };
+    }
+
+    bfloat16x16 fmaddsub(bfloat16x16 mul_left, bfloat16x16 mul_right, bfloat16x16 rhs)
+    {
+        return bfloat16x16{ FOYE_SIMD_MERGE_i(
+            cvt8lane_fp32_to_bf16(_mm256_fmaddsub_ps(
+                cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(mul_left.data)),
+                cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(mul_right.data)),
+                cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(rhs.data)))),
+            cvt8lane_fp32_to_bf16(_mm256_fmaddsub_ps(
+                cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(mul_left.data)),
+                cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(mul_right.data)),
+                cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(rhs.data))))) };
+    }
+#endif
+
+
+    float32x8 rsqrt(float32x8 input) { return float32x8{ _mm256_rsqrt_ps(input.data) }; }
+    float32x4 rsqrt(float32x4 input) { return float32x4{ _mm_rsqrt_ps(input.data) }; }
+
+#if defined(_FOYE_SIMD_HAS_FP16_)
+    float16x8 rsqrt(float16x8 input)
+    {
+        __m256 vres32 = _mm256_rsqrt_ps(cvt8lane_fp16_to_fp32(input.data));
+        return float16x8{ cvt8lane_fp32_to_fp16(vres32) };
+    }
+    float16x16 rsqrt(float16x16 input)
+    {
+        return float16x16{ FOYE_SIMD_MERGE_i(
+            cvt8lane_fp32_to_fp16(_mm256_rsqrt_ps(cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(input.data)))),
+            cvt8lane_fp32_to_fp16(_mm256_rsqrt_ps(cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(input.data))))) };
+    }
+#endif
+#if defined(_FOYE_SIMD_HAS_BF16_)
+    bfloat16x8 rsqrt(bfloat16x8 input)
+    {
+        __m256 vres32 = _mm256_rsqrt_ps(cvt8lane_bf16_to_fp32(input.data));
+        return bfloat16x8{ cvt8lane_fp32_to_bf16(vres32) };
+    }
+    bfloat16x16 rsqrt(bfloat16x16 input)
+    {
+        return bfloat16x16{ FOYE_SIMD_MERGE_i(
+            cvt8lane_fp32_to_bf16(_mm256_rsqrt_ps(cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(input.data)))),
+            cvt8lane_fp32_to_bf16(_mm256_rsqrt_ps(cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(input.data))))) };
+    }
+#endif
+
+#if !defined(_FOYE_SIMD_ENABLE_EMULATED_)
+    DEF_NOTSUPPORTED_IMPLEMENT(float64x2 rsqrt(float64x2 input))
+    DEF_NOTSUPPORTED_IMPLEMENT(float64x4 rsqrt(float64x4 input))
+#else
+    namespace detail
+    {
+        template<typename simd_type>
+        simd_type rsqrt_soft_simulation(simd_type input)
+        {
+            constexpr std::size_t N = 2;
+
+            constexpr std::size_t single_width_bits = simd_type::scalar_bit_width;
+            using uscalar_type = fyx::simd::detail::integral_t<single_width_bits, false>;
+            using usimd_type = basic_simd<uscalar_type, simd_type::bit_width>;
+
+            const usimd_type MAGIC = fyx::simd::load_brocast<usimd_type>(0x5FE6EB50C7B537AA);
+            const simd_type HALF = fyx::simd::load_brocast<simd_type>(0.5);
+            const simd_type ONE_HALF = fyx::simd::load_brocast<simd_type>(1.5);
+
+            usimd_type i = fyx::simd::reinterpret<usimd_type>(input);
+            i = fyx::simd::minus(MAGIC, fyx::simd::shift_right<1>(i));
+            simd_type y = fyx::simd::reinterpret<simd_type>(i);
+
+            for (std::size_t iter = 0; iter < N; ++iter)
+            {
+                simd_type y2 = fyx::simd::multiplies(y, y);
+                simd_type half_src = fyx::simd::multiplies(input, HALF);
+                simd_type term = fyx::simd::fnma(half_src, y2, ONE_HALF);
+                y = fyx::simd::multiplies(y, term);
+            }
+
+            return y;
+        }
+    }
+
+    float64x2 rsqrt(float64x2 input) { return fyx::simd::detail::rsqrt_soft_simulation<float64x2>(input); }
+    float64x4 rsqrt(float64x4 input) { return fyx::simd::detail::rsqrt_soft_simulation<float64x4>(input); }
+#endif
+    
+#if defined(_FOYE_SIMD_HAS_FP16_)
+    mask_from_simd_t<float16x8> not_nan(float16x8 input)
+    {
+        __m256 vsrc = cvt8lane_fp16_to_fp32(input.data);
+        __m256 vres32 = _mm256_cmp_ps(vsrc, vsrc, _CMP_ORD_Q);
+        return mask_from_simd_t<float16x8>{ cvt8lane_fp32_to_fp16(vres32) };
+    }
+    mask_from_simd_t<float16x16> not_nan(float16x16 input)
+    {
+        __m256 vsrc_low = cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(input.data));
+        __m256 vsrc_high = cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(input.data));
+        __m128i v_low = cvt8lane_fp32_to_fp16(_mm256_cmp_ps(vsrc_low, vsrc_low, _CMP_ORD_Q));
+        __m128i v_high = cvt8lane_fp32_to_fp16(_mm256_cmp_ps(vsrc_high, vsrc_high, _CMP_ORD_Q));
+        return mask_from_simd_t<float16x16>{ FOYE_SIMD_MERGE_i(v_low, v_high) };
+    }
+#endif
+#if defined(_FOYE_SIMD_HAS_BF16_)
+    mask_from_simd_t<bfloat16x8> not_nan(bfloat16x8 input)
+    {
+        __m256 vsrc = cvt8lane_bf16_to_fp32(input.data);
+        __m256 vres32 = _mm256_cmp_ps(vsrc, vsrc, _CMP_ORD_Q);
+        return mask_from_simd_t<bfloat16x8>{ cvt8lane_fp32_to_bf16(vres32) };
+    }
+    mask_from_simd_t<bfloat16x16> not_nan(bfloat16x16 input)
+    {
+        __m256 vsrc_low = cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(input.data));
+        __m256 vsrc_high = cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(input.data));
+        __m128i v_low = cvt8lane_fp32_to_bf16(_mm256_cmp_ps(vsrc_low, vsrc_low, _CMP_ORD_Q));
+        __m128i v_high = cvt8lane_fp32_to_bf16(_mm256_cmp_ps(vsrc_high, vsrc_high, _CMP_ORD_Q));
+        return mask_from_simd_t<bfloat16x16>{ FOYE_SIMD_MERGE_i(v_low, v_high) };
+    }
+#endif
+
+    float32x8 rcp(float32x8 input) { return float32x8{ _mm256_rcp_ps(input.data) }; }
+    float32x4 rcp(float32x4 input) { return float32x4{ _mm_rcp_ps(input.data) }; }
+#ifndef _FOYE_SIMD_ENABLE_EMULATED_
+    DEF_NOTSUPPORTED_IMPLEMENT(float64x2 rcp(float64x2 src))
+    DEF_NOTSUPPORTED_IMPLEMENT(float64x4 rcp(float64x4 src))
+#else
+    float64x2 rcp(float64x2 input) { return float64x2{ _mm_div_pd(_mm_set1_pd(1.0), input.data) }; }
+    float64x4 rcp(float64x4 input) { return float64x4{ _mm256_div_pd(_mm256_set1_pd(1.0), input.data) }; }
+#endif
+#if defined(_FOYE_SIMD_HAS_FP16_)
+    float16x8 rcp(float16x8 input)
+    {
+        __m256 vsrc = cvt8lane_fp16_to_fp32(input.data);
+        __m256 vres32 = _mm256_rcp_ps(vsrc);
+        return float16x8{ cvt8lane_fp32_to_fp16(vres32) };
+    }
+    float16x16 rcp(float16x16 input)
+    {
+        __m256 vsrc_low = cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(input.data));
+        __m256 vsrc_high = cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(input.data));
+        __m128i v_low = cvt8lane_fp32_to_fp16(_mm256_rcp_ps(vsrc_low));
+        __m128i v_high = cvt8lane_fp32_to_fp16(_mm256_rcp_ps(vsrc_high));
+        return float16x16{ FOYE_SIMD_MERGE_i(v_low, v_high) };
+    }
+#endif
+#if defined(_FOYE_SIMD_HAS_BF16_)
+    bfloat16x8 rcp(bfloat16x8 input)
+    {
+        __m256 vsrc = cvt8lane_bf16_to_fp32(input.data);
+        __m256 vres32 = _mm256_rcp_ps(vsrc);
+        return bfloat16x8{ cvt8lane_fp32_to_bf16(vres32) };
+    }
+    bfloat16x16 rcp(bfloat16x16 input)
+    {
+        __m256 vsrc_low = cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(input.data));
+        __m256 vsrc_high = cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(input.data));
+        __m128i v_low = cvt8lane_fp32_to_bf16(_mm256_rcp_ps(vsrc_low));
+        __m128i v_high = cvt8lane_fp32_to_bf16(_mm256_rcp_ps(vsrc_high));
+        return bfloat16x16{ FOYE_SIMD_MERGE_i(v_low, v_high) };
+    }
+#endif
+
+    float32x8 sqrt(float32x8 input) { return float32x8{ _mm256_sqrt_ps(input.data) }; }
+    float64x4 sqrt(float64x4 input) { return float64x4{ _mm256_sqrt_pd(input.data) }; }
+    float32x4 sqrt(float32x4 input) { return float32x4{ _mm_sqrt_ps(input.data) }; }
+    float64x2 sqrt(float64x2 input) { return float64x2{ _mm_sqrt_pd(input.data) }; }
+#if defined(_FOYE_SIMD_HAS_FP16_)
+    float16x8 sqrt(float16x8 input)
+    {
+        __m256 vsrc = cvt8lane_fp16_to_fp32(input.data);
+        __m256 vres32 = _mm256_sqrt_ps(vsrc);
+        return float16x8{ cvt8lane_fp32_to_fp16(vres32) };
+    }
+    float16x16 sqrt(float16x16 input)
+    {
+        __m256 vsrc_low = cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(input.data));
+        __m256 vsrc_high = cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(input.data));
+        __m128i v_low = cvt8lane_fp32_to_fp16(_mm256_sqrt_ps(vsrc_low));
+        __m128i v_high = cvt8lane_fp32_to_fp16(_mm256_sqrt_ps(vsrc_high));
+        return float16x16{ FOYE_SIMD_MERGE_i(v_low, v_high) };
+    }
+#endif
+#if defined(_FOYE_SIMD_HAS_BF16_)
+    bfloat16x8 sqrt(bfloat16x8 input)
+    {
+        __m256 vsrc = cvt8lane_bf16_to_fp32(input.data);
+        __m256 vres32 = _mm256_sqrt_ps(vsrc);
+        return bfloat16x8{ cvt8lane_fp32_to_bf16(vres32) };
+    }
+    bfloat16x16 sqrt(bfloat16x16 input)
+    {
+        __m256 vsrc_low = cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(input.data));
+        __m256 vsrc_high = cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(input.data));
+        __m128i v_low = cvt8lane_fp32_to_bf16(_mm256_sqrt_ps(vsrc_low));
+        __m128i v_high = cvt8lane_fp32_to_bf16(_mm256_sqrt_ps(vsrc_high));
+        return bfloat16x16{ FOYE_SIMD_MERGE_i(v_low, v_high) };
+    }
+#endif
+
+
+#if defined(FOYE_SIMD_ENABLE_SVML)
+    float32x8 exp(float32x8 input) { return float32x8{ _mm256_exp_ps(input.data) }; }
+    float64x4 exp(float64x4 input) { return float64x4{ _mm256_exp_pd(input.data) }; }
+    float32x4 exp(float32x4 input) { return float32x4{ _mm_exp_ps(input.data) }; }
+    float64x2 exp(float64x2 input) { return float64x2{ _mm_exp_pd(input.data) }; }
+#else
+    namespace detail
+    {
+        template<typename simd_type>
+        simd_type expFP32_soft_simulation(simd_type x)
+            requires(fyx::simd::is_basic_simd_v<simd_type> && std::is_same_v<float, typename simd_type::scalar_t>)
+        {
+            using vsint_t = fyx::simd::basic_simd<fyx::simd::detail::integral_t<
+                simd_type::scalar_bit_width, true>, simd_type::bit_width>;
+
+            const simd_type vexp_hi_f32 = fyx::simd::load_brocast<simd_type>(89.f);
+            const simd_type vexp_half_fp32 = fyx::simd::load_brocast<simd_type>(0.5f);
+            const simd_type vexp_one_fp32 = fyx::simd::load_brocast<simd_type>(1.f);
+            const simd_type vexp_LOG2EF_f32 = fyx::simd::load_brocast<simd_type>(1.44269504088896341f);
+
+            const vsint_t exp_bias_s32 = fyx::simd::load_brocast<vsint_t>(0x7f);
+
+            simd_type vexp_x = fyx::simd::max(x, fyx::simd::load_brocast<simd_type>(-88.3762626647949f));
+            vexp_x = fyx::simd::min(vexp_x, vexp_hi_f32);
+
+            simd_type vexp = fyx::simd::fma(vexp_x, vexp_LOG2EF_f32, vexp_half_fp32);
+            vsint_t vexp_mm = fyx::simd::floor_as_i(vexp);
+
+            vexp = fyx::simd::floating<simd_type>(vexp_mm);
+            vexp_mm = fyx::simd::plus(vexp_mm, exp_bias_s32);
+            vexp_mm = fyx::simd::shift_left<23>(vexp_mm);
+
+            vexp_x = fyx::simd::fma(vexp, fyx::simd::load_brocast<simd_type>(-6.93359375E-1f), vexp_x);
+            vexp_x = fyx::simd::fma(vexp, fyx::simd::load_brocast<simd_type>(2.12194440E-4f), vexp_x);
+            simd_type vexp_xx = fyx::simd::multiplies(vexp_x, vexp_x);
+
+            const simd_type vexp_p[6] = {
+                fyx::simd::load_brocast<simd_type>(1.9875691500E-4f), fyx::simd::load_brocast<simd_type>(1.3981999507E-3f),
+                fyx::simd::load_brocast<simd_type>(8.3334519073E-3f), fyx::simd::load_brocast<simd_type>(4.1665795894E-2f),
+                fyx::simd::load_brocast<simd_type>(1.6666665459E-1f), fyx::simd::load_brocast<simd_type>(5.0000001201E-1f) };
+
+            simd_type vexp_y = fyx::simd::fma(vexp_x, vexp_p[0], vexp_p[1]);
+            vexp_y = fyx::simd::fma(vexp_y, vexp_x, vexp_p[2]);
+            vexp_y = fyx::simd::fma(vexp_y, vexp_x, vexp_p[3]);
+            vexp_y = fyx::simd::fma(vexp_y, vexp_x, vexp_p[4]);
+            vexp_y = fyx::simd::fma(vexp_y, vexp_x, vexp_p[5]);
+
+            vexp_y = fyx::simd::fma(vexp_y, vexp_xx, vexp_x);
+            vexp_y = fyx::simd::plus(vexp_y, vexp_one_fp32);
+            vexp_y = fyx::simd::multiplies(vexp_y, fyx::simd::reinterpret<simd_type>(vexp_mm));
+
+            fyx::simd::mask_from_simd_t<simd_type> mask_not_nan = fyx::simd::not_nan(x);
+            simd_type all_Nah = fyx::simd::reinterpret<simd_type>(fyx::simd::load_brocast<vsint_t>(0x7fc00000));
+            return fyx::simd::where_assign<simd_type>(all_Nah, vexp_y, mask_not_nan);
+        }
+
+        template<typename simd_type>
+        simd_type expFP64_soft_simulation(simd_type input)
+            requires(fyx::simd::is_basic_simd_v<simd_type>&& std::is_same_v<double, typename simd_type::scalar_t>)
+        {
+            using int_vector_t = fyx::simd::basic_simd<fyx::simd::detail::integral_t<
+                simd_type::scalar_bit_width, true>, simd_type::bit_width>;
+
+            const int_vector_t exponent_bias = fyx::simd::load_brocast<int_vector_t>(0x3ff);
+
+            simd_type clamped_input = fyx::simd::max(input, fyx::simd::load_brocast<simd_type>(-709.43613930310391424428));
+            clamped_input = fyx::simd::min(clamped_input, fyx::simd::load_brocast<simd_type>(710.));
+
+            simd_type result = fyx::simd::fma(clamped_input,
+                fyx::simd::load_brocast<simd_type>(1.44269504088896340736),
+                fyx::simd::load_brocast<simd_type>(0.5));
+
+            int_vector_t exponent_int = fyx::simd::floor_as_i(result);
+
+            result = fyx::simd::floating<simd_type>(exponent_int);
+            exponent_int = fyx::simd::plus(exponent_int, exponent_bias);
+            exponent_int = fyx::simd::shift_left<52>(exponent_int);
+
+            simd_type fractional_part = fyx::simd::fma(result, fyx::simd::load_brocast<simd_type>(-6.93145751953125E-1), clamped_input);
+            fractional_part = fyx::simd::fma(result, fyx::simd::load_brocast<simd_type>(-1.42860682030941723212E-6), fractional_part);
+            simd_type fractional_squared = fyx::simd::multiplies(fractional_part, fractional_part);
+
+            const simd_type numerator_coeff0 = fyx::simd::load_brocast<simd_type>(1.26177193074810590878E-4);
+            const simd_type numerator_coeff1 = fyx::simd::load_brocast<simd_type>(3.02994407707441961300E-2);
+            const simd_type numerator_coeff2 = fyx::simd::load_brocast<simd_type>(9.99999999999999999910E-1);
+            simd_type numerator = fyx::simd::fma(fractional_squared, numerator_coeff0, numerator_coeff1);
+            numerator = fyx::simd::fma(numerator, fractional_squared, numerator_coeff2);
+            numerator = fyx::simd::multiplies(numerator, fractional_part);
+
+            const simd_type denominator_coeff0 = fyx::simd::load_brocast<simd_type>(3.00198505138664455042E-6);
+            const simd_type denominator_coeff1 = fyx::simd::load_brocast<simd_type>(2.52448340349684104192E-3);
+            const simd_type denominator_coeff2 = fyx::simd::load_brocast<simd_type>(2.27265548208155028766E-1);
+            const simd_type denominator_coeff3 = fyx::simd::load_brocast<simd_type>(2.00000000000000000009E0);
+            simd_type denominator = fyx::simd::fma(fractional_squared, denominator_coeff0, denominator_coeff1);
+            denominator = fyx::simd::fma(fractional_squared, denominator, denominator_coeff2);
+            denominator = fyx::simd::fma(fractional_squared, denominator, denominator_coeff3);
+
+            denominator = fyx::simd::divide(numerator, fyx::simd::minus(denominator, numerator));
+            denominator = fyx::simd::fma(fyx::simd::load_brocast<simd_type>(2.0), denominator, fyx::simd::load_brocast<simd_type>(1.0));
+
+            denominator = fyx::simd::multiplies(denominator, fyx::simd::reinterpret<simd_type>(exponent_int));
+
+            fyx::simd::mask_from_simd_t<simd_type> valid_input_mask = fyx::simd::not_nan(input);
+            return simd_type{ fyx::simd::where_assign(input, denominator, valid_input_mask) };
+        }
+    }
+
+    float32x8 exp(float32x8 input) { return float32x8{ fyx::simd::detail::expFP32_soft_simulation<float32x8>(input) }; }
+    float64x4 exp(float64x4 input) { return float64x4{ fyx::simd::detail::expFP64_soft_simulation<float64x4>(input) }; }
+    float32x4 exp(float32x4 input) { return float32x4{ fyx::simd::detail::expFP32_soft_simulation<float32x4>(input) }; }
+    float64x2 exp(float64x2 input) { return float64x2{ fyx::simd::detail::expFP64_soft_simulation<float64x2>(input) }; }
+#endif
+
+#if defined(FOYE_SIMD_ENABLE_SVML)
+    float32x8 hypot(float32x8 a, float32x8 b) { return float32x8{ _mm256_hypot_ps(a.data, b.data) }; }
+    float64x4 hypot(float64x4 a, float64x4 b) { return float64x4{ _mm256_hypot_pd(a.data, b.data) }; }
+    float32x4 hypot(float32x4 a, float32x4 b) { return float32x4{ _mm_hypot_ps(a.data, b.data) }; }
+    float64x2 hypot(float64x2 a, float64x2 b) { return float64x2{ _mm_hypot_pd(a.data, b.data) }; }
+#else
+    namespace detail
+    {
+        template<typename simd_type>
+        simd_type hypot_soft_simulation(simd_type a, simd_type b)
+        {
+            const simd_type na_zero = fyx::simd::load_brocast<simd_type>(-0.0f);
+            simd_type abs_a = fyx::simd::bitwise_ANDNOT(na_zero, a);
+            simd_type abs_b = fyx::simd::bitwise_ANDNOT(na_zero, b);
+
+            simd_type max_val = fyx::simd::max(abs_a, abs_b);
+            simd_type min_val = fyx::simd::min(abs_a, abs_b);
+
+            simd_type zero = fyx::simd::allzero_bits_as<simd_type>();
+            simd_type min_nonzero = fyx::simd::max(min_val, fyx::simd::load_brocast<simd_type>(1e-38f));
+
+            simd_type ratio = fyx::simd::divide(min_nonzero, max_val);
+
+            simd_type ratio2 = fyx::simd::multiplies(ratio, ratio);
+            simd_type sqrt_val = fyx::simd::sqrt(fyx::simd::plus(fyx::simd::load_brocast<simd_type>(1.0f), ratio2));
+
+            return fyx::simd::multiplies(max_val, sqrt_val);
+        }
+    }
+
+    float32x8 hypot(float32x8 a, float32x8 b) { return fyx::simd::detail::hypot_soft_simulation<float32x8>(a, b); }
+    float64x4 hypot(float64x4 a, float64x4 b) { return fyx::simd::detail::hypot_soft_simulation<float64x4>(a, b); }
+    float32x4 hypot(float32x4 a, float32x4 b) { return fyx::simd::detail::hypot_soft_simulation<float32x4>(a, b); }
+    float64x2 hypot(float64x2 a, float64x2 b) { return fyx::simd::detail::hypot_soft_simulation<float64x2>(a, b); }
+#endif
+#if defined(_FOYE_SIMD_HAS_FP16_)
+    float16x8 hypot(float16x8 a, float16x8 b)
+    {
+        float32x8 a32{ cvt8lane_fp16_to_fp32(a.data) };
+        float32x8 b32{ cvt8lane_fp16_to_fp32(b.data) };
+        float32x8 res32 = fyx::simd::hypot(a32, b32);
+        return float16x8{ cvt8lane_fp32_to_fp16(res32.data) };
+    }
+    float16x16 hypot(float16x16 a, float16x16 b)
+    {
+        float32x8 res32_low = fyx::simd::hypot(
+            float32x8{ cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(a.data)) },
+            float32x8{ cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(b.data)) });
+
+        float32x8 res32_high = fyx::simd::hypot(
+            float32x8{ cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(a.data)) },
+            float32x8{ cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(b.data)) });
+
+        return float16x16{ FOYE_SIMD_MERGE_i(
+            cvt8lane_fp32_to_fp16(res32_low.data),
+            cvt8lane_fp32_to_fp16(res32_high.data)) };
+    }
+#endif
+#if defined(_FOYE_SIMD_HAS_BF16_)
+    bfloat16x8 hypot(bfloat16x8 a, bfloat16x8 b)
+    {
+        float32x8 a32{ cvt8lane_bf16_to_fp32(a.data) };
+        float32x8 b32{ cvt8lane_bf16_to_fp32(b.data) };
+        float32x8 res32 = fyx::simd::hypot(a32, b32);
+        return bfloat16x8{ cvt8lane_fp32_to_bf16(res32.data) };
+    }
+    bfloat16x16 hypot(bfloat16x16 a, bfloat16x16 b)
+    {
+        float32x8 res32_low = fyx::simd::hypot(
+            float32x8{ cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(a.data)) },
+            float32x8{ cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(b.data)) });
+
+        float32x8 res32_high = fyx::simd::hypot(
+            float32x8{ cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(a.data)) },
+            float32x8{ cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(b.data)) });
+
+        return bfloat16x16{ FOYE_SIMD_MERGE_i(
+            cvt8lane_fp32_to_bf16(res32_low.data),
+            cvt8lane_fp32_to_bf16(res32_high.data)) };
+    }
+#endif
+
+#if defined(FOYE_SIMD_ENABLE_SVML)
+    float32x8 erf(float32x8 input) { return float32x8{ _mm256_erf_ps(input.data) }; }
+    float64x4 erf(float64x4 input) { return float64x4{ _mm256_erf_pd(input.data) }; }
+    float32x4 erf(float32x4 input) { return float32x4{ _mm_erf_ps(input.data) }; }
+    float64x2 erf(float64x2 input) { return float64x2{ _mm_erf_pd(input.data) }; }
+#else
+    namespace detail
+    {
+        template<typename simd_type>
+        simd_type erf_soft_simulation(simd_type v)
+        {
+            const simd_type coef0 = fyx::simd::load_brocast<simd_type>(0.3275911);
+            const simd_type coef1 = fyx::simd::load_brocast<simd_type>(1.061405429);
+            const simd_type coef2 = fyx::simd::load_brocast<simd_type>(-1.453152027);
+            const simd_type coef3 = fyx::simd::load_brocast<simd_type>(1.421413741);
+            const simd_type coef4 = fyx::simd::load_brocast<simd_type>(-0.284496736);
+            const simd_type coef5 = fyx::simd::load_brocast<simd_type>(0.254829592);
+            const simd_type ones = fyx::simd::load_brocast<simd_type>(1.0);
+            const simd_type neg_zeros = fyx::simd::load_brocast<simd_type>(-0.);
+
+            simd_type t = fyx::simd::abs(v);
+            simd_type sign_mask = fyx::simd::bitwise_AND(neg_zeros, v);
+
+            t = fyx::simd::divide(ones, fyx::simd::fma(coef0, t, ones));
+            simd_type r = fyx::simd::fma(coef1, t, coef2);
+            r = fyx::simd::fma(r, t, coef3);
+            r = fyx::simd::fma(r, t, coef4);
+            r = fyx::simd::fma(r, t, coef5);
+
+            simd_type v2 = fyx::simd::multiplies(v, v);
+            simd_type mv2 = fyx::simd::bitwise_XOR(neg_zeros, v2);
+
+            simd_type expres = fyx::simd::exp(mv2);
+            simd_type neg_exp = fyx::simd::bitwise_XOR(neg_zeros, expres);
+            simd_type res = fyx::simd::multiplies(t, neg_exp);
+            res = fyx::simd::fma(r, res, ones);
+            return fyx::simd::bitwise_XOR(sign_mask, res);
+        }
+    }
+
+    float32x8 erf(float32x8 input) { return fyx::simd::detail::erf_soft_simulation<float32x8>(input); }
+    float64x4 erf(float64x4 input) { return fyx::simd::detail::erf_soft_simulation<float64x4>(input); }
+    float32x4 erf(float32x4 input) { return fyx::simd::detail::erf_soft_simulation<float32x4>(input); }
+    float64x2 erf(float64x2 input) { return fyx::simd::detail::erf_soft_simulation<float64x2>(input); }
+#endif
+#if defined(_FOYE_SIMD_HAS_FP16_)
+    float16x8 erf(float16x8 input)
+    {
+        __m256 vsrc = cvt8lane_fp16_to_fp32(input.data);
+        __m256 vres32 = fyx::simd::erf(float32x8{ vsrc }).data;
+        return float16x8{ cvt8lane_fp32_to_fp16(vres32) };
+    }
+    float16x16 erf(float16x16 input)
+    {
+        __m256 vsrc_low = cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(input.data));
+        __m256 vsrc_high = cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(input.data));
+        __m128i v_low = cvt8lane_fp32_to_fp16(fyx::simd::erf(float32x8{ vsrc_low }).data);
+        __m128i v_high = cvt8lane_fp32_to_fp16(fyx::simd::erf(float32x8{ vsrc_high }).data);
+        return float16x16{ FOYE_SIMD_MERGE_i(v_low, v_high) };
+    }
+#endif
+#if defined(_FOYE_SIMD_HAS_BF16_)
+    bfloat16x8 erf(bfloat16x8 input)
+    {
+        __m256 vsrc = cvt8lane_bf16_to_fp32(input.data);
+        __m256 vres32 = fyx::simd::erf(float32x8{ vsrc }).data;
+        return bfloat16x8{ cvt8lane_fp32_to_bf16(vres32) };
+    }
+    bfloat16x16 erf(bfloat16x16 input)
+    {
+        __m256 vsrc_low = cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(input.data));
+        __m256 vsrc_high = cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(input.data));
+        __m128i v_low = cvt8lane_fp32_to_bf16(fyx::simd::erf(float32x8{ vsrc_low }).data);
+        __m128i v_high = cvt8lane_fp32_to_bf16(fyx::simd::erf(float32x8{ vsrc_high }).data);
+        return bfloat16x16{ FOYE_SIMD_MERGE_i(v_low, v_high) };
+    }
+#endif
+
+
+#if defined(FOYE_SIMD_ENABLE_SVML)
+    float32x8 log(float32x8 input) { return float32x8{ _mm256_log_ps(input.data) }; }
+    float64x4 log(float64x4 input) { return float64x4{ _mm256_log_pd(input.data) }; }
+    float32x4 log(float32x4 input) { return float32x4{ _mm_log_ps(input.data) }; }
+    float64x2 log(float64x2 input) { return float64x2{ _mm_log_pd(input.data) }; }
+#else
+#endif
+
+
+#if defined(FOYE_SIMD_ENABLE_SVML)
+    float32x8 exp2(float32x8 input) { return float32x8{ _mm256_exp2_ps(input.data) }; }
+    float64x4 exp2(float64x4 input) { return float64x4{ _mm256_exp2_pd(input.data) }; }
+    float32x4 exp2(float32x4 input) { return float32x4{ _mm_exp2_ps(input.data) }; }
+    float64x2 exp2(float64x2 input) { return float64x2{ _mm_exp2_pd(input.data) }; }
+#else
+#endif
+
+
+#if defined(FOYE_SIMD_ENABLE_SVML)
+    float32x8 exp10(float32x8 input) { return float32x8{ _mm256_exp10_ps(input.data) }; }
+    float64x4 exp10(float64x4 input) { return float64x4{ _mm256_exp10_pd(input.data) }; }
+    float32x4 exp10(float32x4 input) { return float32x4{ _mm_exp10_ps(input.data) }; }
+    float64x2 exp10(float64x2 input) { return float64x2{ _mm_exp10_pd(input.data) }; }
+#else
+#endif
+
+#if defined(FOYE_SIMD_ENABLE_SVML)
+    float32x8 log2(float32x8 input) { return float32x8{ _mm256_log2_ps(input.data) }; }
+    float64x4 log2(float64x4 input) { return float64x4{ _mm256_log2_pd(input.data) }; }
+    float32x4 log2(float32x4 input) { return float32x4{ _mm_log2_ps(input.data) }; }
+    float64x2 log2(float64x2 input) { return float64x2{ _mm_log2_pd(input.data) }; }
+#else
+#endif
+
+#if defined(FOYE_SIMD_ENABLE_SVML)
+    float32x8 log10(float32x8 input) { return float32x8{ _mm256_log10_ps(input.data) }; }
+    float64x4 log10(float64x4 input) { return float64x4{ _mm256_log10_pd(input.data) }; }
+    float32x4 log10(float32x4 input) { return float32x4{ _mm_log10_ps(input.data) }; }
+    float64x2 log10(float64x2 input) { return float64x2{ _mm_log10_pd(input.data) }; }
+#else
+#endif
+
+#if defined(FOYE_SIMD_ENABLE_SVML)
+    float32x8 sin(float32x8 input) { return float32x8{ _mm256_sin_ps(input.data) }; }
+    float64x4 sin(float64x4 input) { return float64x4{ _mm256_sin_pd(input.data) }; }
+    float32x4 sin(float32x4 input) { return float32x4{ _mm_sin_ps(input.data) }; }
+    float64x2 sin(float64x2 input) { return float64x2{ _mm_sin_pd(input.data) }; }
+#else
+#endif
+
+#if defined(FOYE_SIMD_ENABLE_SVML)
+    float32x8 asin(float32x8 input) { return float32x8{ _mm256_asin_ps(input.data) }; }
+    float64x4 asin(float64x4 input) { return float64x4{ _mm256_asin_pd(input.data) }; }
+    float32x4 asin(float32x4 input) { return float32x4{ _mm_asin_ps(input.data) }; }
+    float64x2 asin(float64x2 input) { return float64x2{ _mm_asin_pd(input.data) }; }
+#else
+#endif
+
+#if defined(FOYE_SIMD_ENABLE_SVML)
+    float32x8 cos(float32x8 input) { return float32x8{ _mm256_cos_ps(input.data) }; }
+    float64x4 cos(float64x4 input) { return float64x4{ _mm256_cos_pd(input.data) }; }
+    float32x4 cos(float32x4 input) { return float32x4{ _mm_cos_ps(input.data) }; }
+    float64x2 cos(float64x2 input) { return float64x2{ _mm_cos_pd(input.data) }; }
+#else
+#endif
+
+#if defined(FOYE_SIMD_ENABLE_SVML)
+    float32x8 acos(float32x8 input) { return float32x8{ _mm256_acos_ps(input.data) }; }
+    float64x4 acos(float64x4 input) { return float64x4{ _mm256_acos_pd(input.data) }; }
+    float32x4 acos(float32x4 input) { return float32x4{ _mm_acos_ps(input.data) }; }
+    float64x2 acos(float64x2 input) { return float64x2{ _mm_acos_pd(input.data) }; }
+
+    float32x8 tan(float32x8 input) { return float32x8{ _mm256_tan_ps(input.data) }; }
+    float64x4 tan(float64x4 input) { return float64x4{ _mm256_tan_pd(input.data) }; }
+    float32x4 tan(float32x4 input) { return float32x4{ _mm_tan_ps(input.data) }; }
+    float64x2 tan(float64x2 input) { return float64x2{ _mm_tan_pd(input.data) }; }
+
+    float32x8 atan(float32x8 input) { return float32x8{ _mm256_atan_ps(input.data) }; }
+    float64x4 atan(float64x4 input) { return float64x4{ _mm256_atan_pd(input.data) }; }
+    float32x4 atan(float32x4 input) { return float32x4{ _mm_atan_ps(input.data) }; }
+    float64x2 atan(float64x2 input) { return float64x2{ _mm_atan_pd(input.data) }; }
+
+    float32x8 sind(float32x8 input) { return float32x8{ _mm256_sind_ps(input.data) }; }
+    float64x4 sind(float64x4 input) { return float64x4{ _mm256_sind_pd(input.data) }; }
+    float32x4 sind(float32x4 input) { return float32x4{ _mm_sind_ps(input.data) }; }
+    float64x2 sind(float64x2 input) { return float64x2{ _mm_sind_pd(input.data) }; }
+
+    float32x8 cosd(float32x8 input) { return float32x8{ _mm256_cosd_ps(input.data) }; }
+    float64x4 cosd(float64x4 input) { return float64x4{ _mm256_cosd_pd(input.data) }; }
+    float32x4 cosd(float32x4 input) { return float32x4{ _mm_cosd_ps(input.data) }; }
+    float64x2 cosd(float64x2 input) { return float64x2{ _mm_cosd_pd(input.data) }; }
+
+    float32x8 tand(float32x8 input) { return float32x8{ _mm256_tand_ps(input.data) }; }
+    float64x4 tand(float64x4 input) { return float64x4{ _mm256_tand_pd(input.data) }; }
+    float32x4 tand(float32x4 input) { return float32x4{ _mm_tand_ps(input.data) }; }
+    float64x2 tand(float64x2 input) { return float64x2{ _mm_tand_pd(input.data) }; }
+
+    float32x8 sinh(float32x8 input) { return float32x8{ _mm256_sinh_ps(input.data) }; }
+    float64x4 sinh(float64x4 input) { return float64x4{ _mm256_sinh_pd(input.data) }; }
+    float32x4 sinh(float32x4 input) { return float32x4{ _mm_sinh_ps(input.data) }; }
+    float64x2 sinh(float64x2 input) { return float64x2{ _mm_sinh_pd(input.data) }; }
+
+    float32x8 cosh(float32x8 input) { return float32x8{ _mm256_cosh_ps(input.data) }; }
+    float64x4 cosh(float64x4 input) { return float64x4{ _mm256_cosh_pd(input.data) }; }
+    float32x4 cosh(float32x4 input) { return float32x4{ _mm_cosh_ps(input.data) }; }
+    float64x2 cosh(float64x2 input) { return float64x2{ _mm_cosh_pd(input.data) }; }
+
+    float32x8 tanh(float32x8 input) { return float32x8{ _mm256_tanh_ps(input.data) }; }
+    float64x4 tanh(float64x4 input) { return float64x4{ _mm256_tanh_pd(input.data) }; }
+    float32x4 tanh(float32x4 input) { return float32x4{ _mm_tanh_ps(input.data) }; }
+    float64x2 tanh(float64x2 input) { return float64x2{ _mm_tanh_pd(input.data) }; }
+
+    float32x8 asinh(float32x8 input) { return float32x8{ _mm256_asinh_ps(input.data) }; }
+    float64x4 asinh(float64x4 input) { return float64x4{ _mm256_asinh_pd(input.data) }; }
+    float32x4 asinh(float32x4 input) { return float32x4{ _mm_asinh_ps(input.data) }; }
+    float64x2 asinh(float64x2 input) { return float64x2{ _mm_asinh_pd(input.data) }; }
+
+    float32x8 acosh(float32x8 input) { return float32x8{ _mm256_acosh_ps(input.data) }; }
+    float64x4 acosh(float64x4 input) { return float64x4{ _mm256_acosh_pd(input.data) }; }
+    float32x4 acosh(float32x4 input) { return float32x4{ _mm_acosh_ps(input.data) }; }
+    float64x2 acosh(float64x2 input) { return float64x2{ _mm_acosh_pd(input.data) }; }
+
+    float32x8 atanh(float32x8 input) { return float32x8{ _mm256_atanh_ps(input.data) }; }
+    float64x4 atanh(float64x4 input) { return float64x4{ _mm256_atanh_pd(input.data) }; }
+    float32x4 atanh(float32x4 input) { return float32x4{ _mm_atanh_ps(input.data) }; }
+    float64x2 atanh(float64x2 input) { return float64x2{ _mm_atanh_pd(input.data) }; }
+
+    float32x8 logb(float32x8 input) { return float32x8{ _mm256_logb_ps(input.data) }; }
+    float64x4 logb(float64x4 input) { return float64x4{ _mm256_logb_pd(input.data) }; }
+    float32x4 logb(float32x4 input) { return float32x4{ _mm_logb_ps(input.data) }; }
+    float64x2 logb(float64x2 input) { return float64x2{ _mm_logb_pd(input.data) }; }
+
+    float32x8 expm1(float32x8 input) { return float32x8{ _mm256_expm1_ps(input.data) }; }
+    float64x4 expm1(float64x4 input) { return float64x4{ _mm256_expm1_pd(input.data) }; }
+    float32x4 expm1(float32x4 input) { return float32x4{ _mm_expm1_ps(input.data) }; }
+    float64x2 expm1(float64x2 input) { return float64x2{ _mm_expm1_pd(input.data) }; }
+
+    float32x8 invsqrt(float32x8 input) { return float32x8{ _mm256_invsqrt_ps(input.data) }; }
+    float64x4 invsqrt(float64x4 input) { return float64x4{ _mm256_invsqrt_pd(input.data) }; }
+    float32x4 invsqrt(float32x4 input) { return float32x4{ _mm_invsqrt_ps(input.data) }; }
+    float64x2 invsqrt(float64x2 input) { return float64x2{ _mm_invsqrt_pd(input.data) }; }
+
+    float32x8 cbrt(float32x8 input) { return float32x8{ _mm256_cbrt_ps(input.data) }; }
+    float64x4 cbrt(float64x4 input) { return float64x4{ _mm256_cbrt_pd(input.data) }; }
+    float32x4 cbrt(float32x4 input) { return float32x4{ _mm_cbrt_ps(input.data) }; }
+    float64x2 cbrt(float64x2 input) { return float64x2{ _mm_cbrt_pd(input.data) }; }
+
+    float32x8 invcbrt(float32x8 input) { return float32x8{ _mm256_invcbrt_ps(input.data) }; }
+    float64x4 invcbrt(float64x4 input) { return float64x4{ _mm256_invcbrt_pd(input.data) }; }
+    float32x4 invcbrt(float32x4 input) { return float32x4{ _mm_invcbrt_ps(input.data) }; }
+    float64x2 invcbrt(float64x2 input) { return float64x2{ _mm_invcbrt_pd(input.data) }; }
+
+    float32x8 cdfnorm(float32x8 input) { return float32x8{ _mm256_cdfnorm_ps(input.data) }; }
+    float64x4 cdfnorm(float64x4 input) { return float64x4{ _mm256_cdfnorm_pd(input.data) }; }
+    float32x4 cdfnorm(float32x4 input) { return float32x4{ _mm_cdfnorm_ps(input.data) }; }
+    float64x2 cdfnorm(float64x2 input) { return float64x2{ _mm_cdfnorm_pd(input.data) }; }
+
+    float32x8 cdfnorminv(float32x8 input) { return float32x8{ _mm256_cdfnorminv_ps(input.data) }; }
+    float64x4 cdfnorminv(float64x4 input) { return float64x4{ _mm256_cdfnorminv_pd(input.data) }; }
+    float32x4 cdfnorminv(float32x4 input) { return float32x4{ _mm_cdfnorminv_ps(input.data) }; }
+    float64x2 cdfnorminv(float64x2 input) { return float64x2{ _mm_cdfnorminv_pd(input.data) }; }
+
+    float32x8 erfinv(float32x8 input) { return float32x8{ _mm256_erfinv_ps(input.data) }; }
+    float64x4 erfinv(float64x4 input) { return float64x4{ _mm256_erfinv_pd(input.data) }; }
+    float32x4 erfinv(float32x4 input) { return float32x4{ _mm_erfinv_ps(input.data) }; }
+    float64x2 erfinv(float64x2 input) { return float64x2{ _mm_erfinv_pd(input.data) }; }
+
+    float32x8 fmod(float32x8 arg0, float32x8 arg1) { return float32x8{ _mm256_fmod_ps(arg0.data, arg1.data) }; }
+    float64x4 fmod(float64x4 arg0, float64x4 arg1) { return float64x4{ _mm256_fmod_pd(arg0.data, arg1.data) }; }
+    float32x4 fmod(float32x4 arg0, float32x4 arg1) { return float32x4{ _mm_fmod_ps(arg0.data, arg1.data) }; }
+    float64x2 fmod(float64x2 arg0, float64x2 arg1) { return float64x2{ _mm_fmod_pd(arg0.data, arg1.data) }; }
+
+    float32x8 atan2(float32x8 arg0, float32x8 arg1) { return float32x8{ _mm256_atan2_ps(arg0.data, arg1.data) }; }
+    float64x4 atan2(float64x4 arg0, float64x4 arg1) { return float64x4{ _mm256_atan2_pd(arg0.data, arg1.data) }; }
+    float32x4 atan2(float32x4 arg0, float32x4 arg1) { return float32x4{ _mm_atan2_ps(arg0.data, arg1.data) }; }
+    float64x2 atan2(float64x2 arg0, float64x2 arg1) { return float64x2{ _mm_atan2_pd(arg0.data, arg1.data) }; }
+#endif
+
+
+#if defined(FOYE_SIMD_ENABLE_SVML)
+    float32x8 pow(float32x8 arg0, float32x8 arg1) { return float32x8{ _mm256_pow_ps(arg0.data, arg1.data) }; }
+    float64x4 pow(float64x4 arg0, float64x4 arg1) { return float64x4{ _mm256_pow_pd(arg0.data, arg1.data) }; }
+    float32x4 pow(float32x4 arg0, float32x4 arg1) { return float32x4{ _mm_pow_ps(arg0.data, arg1.data) }; }
+    float64x2 pow(float64x2 arg0, float64x2 arg1) { return float64x2{ _mm_pow_pd(arg0.data, arg1.data) }; }
+#else
+#endif
+}
+
+#endif
