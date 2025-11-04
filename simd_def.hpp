@@ -27,7 +27,7 @@ namespace fyx::simd
         vector_t data;
 
         basic_simd() noexcept = default;
-        explicit basic_simd(vector_t data_) noexcept : data(data_) {}
+        explicit basic_simd(vector_t data_) noexcept : data(data_) { }
 
         explicit basic_simd(basic_simd<T, bits_width / 2> low, basic_simd<T, bits_width / 2> high) noexcept
             : data(fyx::simd::detail::merge(low.data, high.data)) { }
@@ -83,7 +83,7 @@ namespace fyx::simd
             : data(fyx::simd::detail::basic_reinterpret<vector_t, input_type>(input)) { }
 
         template<typename output_type> 
-         requires(sizeof(output_type) == sizeof(vector_t) && fyx::simd::detail::is_mm_vector_type_v<output_type>)
+        requires(sizeof(output_type) == sizeof(vector_t) && fyx::simd::detail::is_mm_vector_type_v<output_type>)
         operator output_type() const noexcept
         {
             return fyx::simd::detail::basic_reinterpret<output_type, vector_t>(this->data);
@@ -302,7 +302,9 @@ static_assert(is_half_basic_simd_v<type_for_check>, \
         using input_scalar_t = typename simd_type::scalar_t;
         using input_vector_t = typename simd_type::vector_t;
         
-        static_assert((std::is_constructible_v<Args, input_scalar_t> && ...), "All arguments must be convertible to simd_type::scalar_t");
+        static_assert((std::is_constructible_v<input_scalar_t, Args> && ...),
+            "All arguments must be convertible to simd_type::scalar_t");
+
         static_assert(sizeof...(Args) <= simd_type::lane_width, "The number of scalars passed in cannot exceed the simd_type::lane_width");
 
         using setter_invoker = fyx::simd::detail::setter_by_each_invoker<input_vector_t, sizeof(input_scalar_t),
@@ -535,8 +537,8 @@ static_assert(is_half_basic_simd_v<type_for_check>, \
     void zero_upper() { _mm256_zeroupper(); }
     void zero_all() { _mm256_zeroall(); }
 
-    class all_zero_guard { public: ~all_zero_guard() { _mm256_zeroall(); } };
-    class upper_zero_guard { public: ~upper_zero_guard() { _mm256_zeroupper(); } };
+    struct all_zero_guard { ~all_zero_guard() { _mm256_zeroall(); } };
+    struct upper_zero_guard { ~upper_zero_guard() { _mm256_zeroupper(); } };
     
     template<typename T>
     void nontemporal_hint(T* ptr)
