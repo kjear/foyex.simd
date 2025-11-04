@@ -175,14 +175,6 @@ namespace fyx::simd::test
 #endif
 
 #if defined(FOYE_SIMD_ENABLE_SVML)
-    float32x8 logb(float32x8 input) { return float32x8{ _mm256_logb_ps(input.data) }; }
-    float64x4 logb(float64x4 input) { return float64x4{ _mm256_logb_pd(input.data) }; }
-    float32x4 logb(float32x4 input) { return float32x4{ _mm_logb_ps(input.data) }; }
-    float64x2 logb(float64x2 input) { return float64x2{ _mm_logb_pd(input.data) }; }
-#else
-#endif
-
-#if defined(FOYE_SIMD_ENABLE_SVML)
     float32x8 expm1(float32x8 input) { return float32x8{ _mm256_expm1_ps(input.data) }; }
     float64x4 expm1(float64x4 input) { return float64x4{ _mm256_expm1_pd(input.data) }; }
     float32x4 expm1(float32x4 input) { return float32x4{ _mm_expm1_ps(input.data) }; }
