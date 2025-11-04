@@ -1,4 +1,4 @@
-﻿#ifndef _FOYE_SIMD_FLOATING_HPP_
+#ifndef _FOYE_SIMD_FLOATING_HPP_
 #define _FOYE_SIMD_FLOATING_HPP_
 #pragma once
 
@@ -70,6 +70,61 @@ namespace fyx::simd
     mask_from_simd_t<float32x8> not_nan(float32x8 input) { return mask_from_simd_t<float32x8>(_mm256_cmp_ps(input.data, input.data, _CMP_ORD_Q)); }
     mask_from_simd_t<float64x4> not_nan(float64x4 input) { return mask_from_simd_t<float64x4>(_mm256_cmp_pd(input.data, input.data, _CMP_ORD_Q)); }
 
+#if defined(_FOYE_SIMD_HAS_FP16_)
+    mask_from_simd_t<float16x8> not_nan(float16x8 input)
+    {
+        const __m128i vsrc = input.data;
+        const __m128i exponent_mask = _mm_set1_epi16(0x7C00);
+        const __m128i mantissa_mask = _mm_set1_epi16(0x03FF);
+        __m128i exponent = _mm_and_si128(vsrc, exponent_mask);
+        __m128i is_inf_nan = _mm_cmpeq_epi16(exponent, exponent_mask);
+        __m128i mantissa = _mm_and_si128(vsrc, mantissa_mask);
+        __m128i is_nan = _mm_and_si128(is_inf_nan, _mm_cmpgt_epi16(mantissa, _mm_setzero_si128()));
+        return mask_from_simd_t<float16x8>{_mm_andnot_si128(is_nan, _mm_set1_epi16(0xFFFF))};
+    }
+    mask_from_simd_t<float16x16> not_nan(float16x16 input)
+    {
+        const __m256i vsrc = input.data;
+        const __m256i exponent_mask = _mm256_set1_epi16(0x7C00);
+        const __m256i mantissa_mask = _mm256_set1_epi16(0x03FF);
+        __m256i exponent = _mm256_and_si256(vsrc, exponent_mask);
+        __m256i is_inf_nan = _mm256_cmpeq_epi16(exponent, exponent_mask);
+        __m256i mantissa = _mm256_and_si256(vsrc, mantissa_mask);
+        __m256i is_nan = _mm256_and_si256(is_inf_nan, _mm256_cmpgt_epi16(mantissa, _mm256_setzero_si256()));
+        return mask_from_simd_t<float16x16>{_mm256_andnot_si256(is_nan, _mm256_set1_epi16(0xFFFF))};
+    }
+#endif
+#if defined(_FOYE_SIMD_HAS_BF16_)
+    mask_from_simd_t<bfloat16x8> not_nan(bfloat16x8 input)
+    {
+        const __m128i vsrc = input.data;
+        const __m128i exp_mask = _mm_set1_epi16(0x7F80);
+        const __m128i man_mask = _mm_set1_epi16(0x007F);
+        __m128i exp = _mm_and_si128(vsrc, exp_mask);
+        __m128i is_exp_max = _mm_cmpeq_epi16(exp, exp_mask);
+        __m128i man = _mm_and_si128(vsrc, man_mask);
+        __m128i is_man_nonzero = _mm_cmpgt_epi16(man, _mm_setzero_si128());
+        return mask_from_simd_t<float16x8>{_mm_and_si128(is_exp_max, is_man_nonzero)};
+    }
+    mask_from_simd_t<bfloat16x16> not_nan(bfloat16x16 input)
+    {
+        const __m256i vsrc = input.data;
+        const __m256i exp_mask = _mm256_set1_epi16(0x7F80);
+        const __m256i man_mask = _mm256_set1_epi16(0x007F);
+        __m256i exp = _mm256_and_si256(vsrc, exp_mask);
+        __m256i is_exp_max = _mm256_cmpeq_epi16(exp, exp_mask);
+        __m256i man = _mm256_and_si256(vsrc, man_mask);
+        __m256i is_man_nonzero = _mm256_cmpgt_epi16(man, _mm256_setzero_si256());
+        return mask_from_simd_t<bfloat16x16>{_mm256_and_si256(is_exp_max, is_man_nonzero)};
+    }
+#endif
+
+
+
+
+
+
+
     mask_from_simd_t<float32x4> not_inf(float32x4 input)
     {
         const __m128i inf_mask = _mm_set1_epi32(0x7F800000);
@@ -106,6 +161,9 @@ namespace fyx::simd
         __m256i is_inf = _mm256_cmpeq_epi64(abs_bits, inf_mask);
         return mask_from_simd_t<float64x4>{ _mm256_castsi256_pd(_mm256_xor_si256(is_inf, _mm256_set1_epi64x(0xFFFFFFFFFFFFFFFF))) };
     }
+
+
+
 
 
 
@@ -318,48 +376,121 @@ namespace fyx::simd
     }
 #endif
 
-#if 0
-    float32x8 fmod(float32x8 x_, float32x8 y_)
+#if 1
+    namespace detail
     {
-        __m256 x = x_.data;
-        __m256 y = y_.data;
+        template<typename simd_type>
+        simd_type fmod_fp32_soft_simulation(simd_type x, simd_type y)
+        {
+            const simd_type zero = load_brocast<simd_type>(0.0f);
+            const simd_type na_zero = load_brocast<simd_type>(-0.0f);
+            const simd_type nan = load_brocast<simd_type>(std::numeric_limits<float>::quiet_NaN());
+            const simd_type inf = load_brocast<simd_type>(std::numeric_limits<float>::infinity());
 
-        const __m256 zero = _mm256_set1_ps(0.0f);
-        const __m256 na_zero = _mm256_set1_ps(-0.0f);
+            mask_from_simd_t<simd_type> mask_y_zero = equal(y, zero);
 
-        const __m256 nan = _mm256_set1_ps(std::numeric_limits<float>::quiet_NaN());
-        const __m256 inf = _mm256_set1_ps(std::numeric_limits<float>::infinity());
-        
-        __m256 mask_y_zero = _mm256_cmp_ps(y, zero, _CMP_EQ_OQ);
+            simd_type abs_x = bitwise_ANDNOT(na_zero, x);
+            simd_type abs_y = bitwise_ANDNOT(na_zero, y);
 
-        __m256 abs_x = _mm256_andnot_ps(na_zero, x);
-        __m256 abs_y = _mm256_andnot_ps(na_zero, y);
+            mask_from_simd_t<simd_type> mask_x_inf = equal(abs_x, inf);
+            mask_from_simd_t<simd_type> mask_y_inf = equal(abs_y, inf);
 
-        __m256 mask_x_inf = _mm256_cmp_ps(abs_x, inf, _CMP_EQ_OQ);
-        __m256 mask_y_inf = _mm256_cmp_ps(abs_y, inf, _CMP_EQ_OQ);
+            mask_from_simd_t<simd_type> special_mask{ bitwise_OR(
+                mask_y_zero.as_basic_simd<simd_type>(),
+                bitwise_AND(
+                    mask_x_inf.as_basic_simd<simd_type>(),
+                    bitwise_ANDNOT(
+                        mask_y_inf.as_basic_simd<simd_type>(),
+                        load_brocast<simd_type>(1.0f)))) };
 
-        __m256 special_mask = _mm256_or_ps(mask_y_zero,
-            _mm256_and_ps(mask_x_inf,
-                _mm256_andnot_ps(mask_y_inf,
-                    _mm256_set1_ps(1.0f))));
+            mask_from_simd_t<simd_type> mask_abs_lt = less(abs_x, abs_y);
+            mask_from_simd_t<simd_type> mask_abs_eq = equal(abs_x, abs_y);
 
-        __m256 mask_abs_lt = _mm256_cmp_ps(abs_x, abs_y, _CMP_LT_OQ);
+            simd_type zero_with_sign = bitwise_AND(x, na_zero);
 
-        __m256 mask_abs_eq = _mm256_cmp_ps(abs_x, abs_y, _CMP_EQ_OQ);
-        __m256 zero_with_sign = _mm256_and_ps(x, na_zero);
+            simd_type quotient = divide(x, y);
+            simd_type integer_part = trunc(quotient);
+            simd_type remainder = minus(x, multiplies(integer_part, y));
 
-        __m256 quotient = _mm256_div_ps(x, y);
+            remainder = where_assign(remainder, x, mask_abs_lt);
+            remainder = where_assign(remainder, zero_with_sign, mask_abs_eq);
+            remainder = where_assign(remainder, nan, special_mask);
+            return remainder;
+        }
 
-        __m256 integer_part = _mm256_round_ps(quotient, _MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC);
-        __m256 remainder = _mm256_sub_ps(x, _mm256_mul_ps(integer_part, y));
+        template<typename simd_type>
+        simd_type fmod_fp64_soft_simulation(simd_type x, simd_type y)
+        {
+            const simd_type zero = load_brocast<simd_type>(0.0);
+            const simd_type na_zero = load_brocast<simd_type>(-0.0);
+            const simd_type nan = load_brocast<simd_type>(std::numeric_limits<double>::quiet_NaN());
+            const simd_type inf = load_brocast<simd_type>(std::numeric_limits<double>::infinity());
+            const simd_type one = load_brocast<simd_type>(1.0);
+            const simd_type max_safe_quotient = load_brocast<simd_type>(1e15);
 
-        remainder = _mm256_blendv_ps(remainder, x, mask_abs_lt);
-        remainder = _mm256_blendv_ps(remainder, zero_with_sign, mask_abs_eq);
-        remainder = _mm256_blendv_ps(remainder, nan, special_mask);
-        return float32x8{ remainder };
+            mask_from_simd_t<simd_type> mask_y_zero = equal(y, zero);
+
+            simd_type abs_x = bitwise_ANDNOT(na_zero, x);
+            simd_type abs_y = bitwise_ANDNOT(na_zero, y);
+
+            simd_type mask_x_inf = bitwise_ANDNOT(abs_x, inf);
+            simd_type mask_y_inf = bitwise_ANDNOT(abs_y, inf);
+
+            simd_type special_mask = bitwise_OR(
+                mask_y_zero.as_basic_simd<simd_type>(),
+                bitwise_AND(mask_x_inf,
+                    bitwise_ANDNOT(mask_y_inf, one)));
+
+            mask_from_simd_t<simd_type> mask_abs_lt = less(abs_x, abs_y);
+            mask_from_simd_t<simd_type> mask_abs_eq = equal(abs_x, abs_y);
+            simd_type zero_with_sign = bitwise_AND(x, na_zero);
+
+            simd_type quotient = divide(x, y);
+            
+            simd_type abs_quotient = bitwise_ANDNOT(na_zero, quotient);
+            mask_from_simd_t<simd_type> need_high_precision = greater(abs_quotient, max_safe_quotient);
+
+            simd_type integer_part_std = trunc(quotient);
+            simd_type remainder_std = minus(x, multiplies(integer_part_std, y));
+
+            simd_type integer_part_high = trunc(quotient);
+
+            simd_type remainder_high = minus(x, multiplies(integer_part_high, y));
+
+            simd_type adjustment = load_brocast<simd_type>(0.0);
+
+            simd_type abs_remainder = bitwise_ANDNOT(na_zero, remainder_high);
+            mask_from_simd_t<simd_type> need_adjust_up = greater(remainder_high, zero);
+            mask_from_simd_t<simd_type> need_adjust_down = less(remainder_high, zero);
+
+            simd_type adjust_up = bitwise_AND(
+                need_adjust_up.as_basic_simd<simd_type>(),
+                greater_equal(abs_remainder, abs_y).as_basic_simd<simd_type>());
+
+            simd_type adjust_down = bitwise_AND(
+                need_adjust_down.as_basic_simd<simd_type>(),
+                greater_equal(abs_remainder, abs_y).as_basic_simd<simd_type>());
+
+            adjustment = where_assign(adjustment, y, adjust_up);
+            adjustment = where_assign(adjustment, minus(zero, y), adjust_down);
+
+            remainder_high = plus(remainder_high, adjustment);
+
+            simd_type remainder = where_assign(remainder_std, remainder_high, need_high_precision);
+
+            remainder = where_assign(remainder, x, mask_abs_lt);
+            remainder = where_assign(remainder, zero_with_sign, mask_abs_eq);
+            remainder = where_assign(remainder, nan, special_mask);
+
+            return simd_type{ remainder };
+        }
     }
-#endif
 
+    float32x8 fmod(float32x8 x_, float32x8 y_) { return detail::fmod_fp32_soft_simulation<float32x8>(x_, y_); }
+    float32x4 fmod(float32x4 x_, float32x4 y_) { return detail::fmod_fp32_soft_simulation<float32x4>(x_, y_); }
+    float64x2 fmod(float64x2 x_, float64x2 y_) { return detail::fmod_fp64_soft_simulation<float64x2>(x_, y_); }
+    float64x4 fmod(float64x4 x_, float64x4 y_) { return detail::fmod_fp64_soft_simulation<float64x4>(x_, y_); }
+#endif
 
     float32x8 fma(float32x8 mul_left, float32x8 mul_right, float32x8 add_right) { return float32x8(_mm256_fmadd_ps(mul_left.data, mul_right.data, add_right.data)); }
     float64x4 fma(float64x4 mul_left, float64x4 mul_right, float64x4 add_right) { return float64x4(_mm256_fmadd_pd(mul_left.data, mul_right.data, add_right.data)); }
@@ -671,39 +802,6 @@ namespace fyx::simd
     float64x4 rsqrt(float64x4 input) { return fyx::simd::detail::rsqrt_soft_simulation<float64x4>(input); }
 #endif
     
-#if defined(_FOYE_SIMD_HAS_FP16_)
-    mask_from_simd_t<float16x8> not_nan(float16x8 input)
-    {
-        __m256 vsrc = cvt8lane_fp16_to_fp32(input.data);
-        __m256 vres32 = _mm256_cmp_ps(vsrc, vsrc, _CMP_ORD_Q);
-        return mask_from_simd_t<float16x8>{ cvt8lane_fp32_to_fp16(vres32) };
-    }
-    mask_from_simd_t<float16x16> not_nan(float16x16 input)
-    {
-        __m256 vsrc_low = cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(input.data));
-        __m256 vsrc_high = cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(input.data));
-        __m128i v_low = cvt8lane_fp32_to_fp16(_mm256_cmp_ps(vsrc_low, vsrc_low, _CMP_ORD_Q));
-        __m128i v_high = cvt8lane_fp32_to_fp16(_mm256_cmp_ps(vsrc_high, vsrc_high, _CMP_ORD_Q));
-        return mask_from_simd_t<float16x16>{ FOYE_SIMD_MERGE_i(v_low, v_high) };
-    }
-#endif
-#if defined(_FOYE_SIMD_HAS_BF16_)
-    mask_from_simd_t<bfloat16x8> not_nan(bfloat16x8 input)
-    {
-        __m256 vsrc = cvt8lane_bf16_to_fp32(input.data);
-        __m256 vres32 = _mm256_cmp_ps(vsrc, vsrc, _CMP_ORD_Q);
-        return mask_from_simd_t<bfloat16x8>{ cvt8lane_fp32_to_bf16(vres32) };
-    }
-    mask_from_simd_t<bfloat16x16> not_nan(bfloat16x16 input)
-    {
-        __m256 vsrc_low = cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(input.data));
-        __m256 vsrc_high = cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(input.data));
-        __m128i v_low = cvt8lane_fp32_to_bf16(_mm256_cmp_ps(vsrc_low, vsrc_low, _CMP_ORD_Q));
-        __m128i v_high = cvt8lane_fp32_to_bf16(_mm256_cmp_ps(vsrc_high, vsrc_high, _CMP_ORD_Q));
-        return mask_from_simd_t<bfloat16x16>{ FOYE_SIMD_MERGE_i(v_low, v_high) };
-    }
-#endif
-
     float32x8 rcp(float32x8 input) { return float32x8{ _mm256_rcp_ps(input.data) }; }
     float32x4 rcp(float32x4 input) { return float32x4{ _mm_rcp_ps(input.data) }; }
 #ifndef _FOYE_SIMD_ENABLE_EMULATED_
@@ -783,7 +881,6 @@ namespace fyx::simd
     }
 #endif
 
-
 #if defined(FOYE_SIMD_ENABLE_SVML)
     float32x8 exp(float32x8 input) { return float32x8{ _mm256_exp_ps(input.data) }; }
     float64x4 exp(float64x4 input) { return float64x4{ _mm256_exp_pd(input.data) }; }
@@ -821,9 +918,12 @@ namespace fyx::simd
             simd_type vexp_xx = fyx::simd::multiplies(vexp_x, vexp_x);
 
             const simd_type vexp_p[6] = {
-                fyx::simd::load_brocast<simd_type>(1.9875691500E-4f), fyx::simd::load_brocast<simd_type>(1.3981999507E-3f),
-                fyx::simd::load_brocast<simd_type>(8.3334519073E-3f), fyx::simd::load_brocast<simd_type>(4.1665795894E-2f),
-                fyx::simd::load_brocast<simd_type>(1.6666665459E-1f), fyx::simd::load_brocast<simd_type>(5.0000001201E-1f) };
+                fyx::simd::load_brocast<simd_type>(1.9875691500E-4f), 
+                fyx::simd::load_brocast<simd_type>(1.3981999507E-3f),
+                fyx::simd::load_brocast<simd_type>(8.3334519073E-3f), 
+                fyx::simd::load_brocast<simd_type>(4.1665795894E-2f),
+                fyx::simd::load_brocast<simd_type>(1.6666665459E-1f), 
+                fyx::simd::load_brocast<simd_type>(5.0000001201E-1f) };
 
             simd_type vexp_y = fyx::simd::fma(vexp_x, vexp_p[0], vexp_p[1]);
             vexp_y = fyx::simd::fma(vexp_y, vexp_x, vexp_p[2]);
@@ -849,8 +949,11 @@ namespace fyx::simd
 
             const int_vector_t exponent_bias = fyx::simd::load_brocast<int_vector_t>(0x3ff);
 
-            simd_type clamped_input = fyx::simd::max(input, fyx::simd::load_brocast<simd_type>(-709.43613930310391424428));
-            clamped_input = fyx::simd::min(clamped_input, fyx::simd::load_brocast<simd_type>(710.));
+            simd_type clamped_input = fyx::simd::max(input, 
+                fyx::simd::load_brocast<simd_type>(-709.43613930310391424428));
+
+            clamped_input = fyx::simd::min(clamped_input, 
+                fyx::simd::load_brocast<simd_type>(710.));
 
             simd_type result = fyx::simd::fma(clamped_input,
                 fyx::simd::load_brocast<simd_type>(1.44269504088896340736),
@@ -862,8 +965,16 @@ namespace fyx::simd
             exponent_int = fyx::simd::plus(exponent_int, exponent_bias);
             exponent_int = fyx::simd::shift_left<52>(exponent_int);
 
-            simd_type fractional_part = fyx::simd::fma(result, fyx::simd::load_brocast<simd_type>(-6.93145751953125E-1), clamped_input);
-            fractional_part = fyx::simd::fma(result, fyx::simd::load_brocast<simd_type>(-1.42860682030941723212E-6), fractional_part);
+            simd_type fractional_part = fyx::simd::fma(
+                result, 
+                fyx::simd::load_brocast<simd_type>(-6.93145751953125E-1), 
+                clamped_input);
+
+            fractional_part = fyx::simd::fma(
+                result, 
+                fyx::simd::load_brocast<simd_type>(-1.42860682030941723212E-6), 
+                fractional_part);
+
             simd_type fractional_squared = fyx::simd::multiplies(fractional_part, fractional_part);
 
             const simd_type numerator_coeff0 = fyx::simd::load_brocast<simd_type>(1.26177193074810590878E-4);
@@ -895,6 +1006,40 @@ namespace fyx::simd
     float64x4 exp(float64x4 input) { return float64x4{ fyx::simd::detail::expFP64_soft_simulation<float64x4>(input) }; }
     float32x4 exp(float32x4 input) { return float32x4{ fyx::simd::detail::expFP32_soft_simulation<float32x4>(input) }; }
     float64x2 exp(float64x2 input) { return float64x2{ fyx::simd::detail::expFP64_soft_simulation<float64x2>(input) }; }
+#if defined(_FOYE_SIMD_HAS_FP16_)
+    float16x8 exp(float16x8 input)
+    {
+        float32x8 a32{ cvt8lane_fp16_to_fp32(input.data) };
+        float32x8 res32 = fyx::simd::exp(a32);
+        return float16x8{ cvt8lane_fp32_to_fp16(res32.data) };
+    }
+    float16x16 exp(float16x16 input)
+    {
+        float32x8 res32_low = fyx::simd::exp(float32x8{ cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(input.data)) });
+        float32x8 res32_high = fyx::simd::exp(float32x8{ cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(input.data)) });
+
+        return float16x16{ FOYE_SIMD_MERGE_i(
+            cvt8lane_fp32_to_fp16(res32_low.data),
+            cvt8lane_fp32_to_fp16(res32_high.data)) };
+    }
+#endif
+#if defined(_FOYE_SIMD_HAS_BF16_)
+    bfloat16x8 exp(bfloat16x8 input)
+    {
+        float32x8 a32{ cvt8lane_bf16_to_fp32(input.data) };
+        float32x8 res32 = fyx::simd::exp(a32);
+        return bfloat16x8{ cvt8lane_fp32_to_bf16(res32.data) };
+    }
+    bfloat16x16 exp(bfloat16x16 input)
+    {
+        float32x8 res32_low = fyx::simd::exp(float32x8{ cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(input.data)) });
+        float32x8 res32_high = fyx::simd::exp(float32x8{ cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(input.data)) });
+
+        return bfloat16x16{ FOYE_SIMD_MERGE_i(
+            cvt8lane_fp32_to_bf16(res32_low.data),
+            cvt8lane_fp32_to_bf16(res32_high.data)) };
+    }
+#endif
 #endif
 
 #if defined(FOYE_SIMD_ENABLE_SVML)
@@ -1057,6 +1202,61 @@ namespace fyx::simd
     }
 #endif
 
+#if defined(FOYE_SIMD_ENABLE_SVML)
+    float32x8 cdfnorm(float32x8 input) { return float32x8{ _mm256_cdfnorm_ps(input.data) }; }
+    float64x4 cdfnorm(float64x4 input) { return float64x4{ _mm256_cdfnorm_pd(input.data) }; }
+    float32x4 cdfnorm(float32x4 input) { return float32x4{ _mm_cdfnorm_ps(input.data) }; }
+    float64x2 cdfnorm(float64x2 input) { return float64x2{ _mm_cdfnorm_pd(input.data) }; }
+#else
+    namespace detail
+    {
+        template<typename simd_type>
+        simd_type cdfnorm_soft_simulation(simd_type v)
+        {
+            simd_type vtemp = fyx::simd::erf(fyx::simd::multiplies(v, 
+                load_brocast<simd_type>(static_cast<typename simd_type::scalar_t>(0.7071067811865475))));
+            vtemp = fyx::simd::plus(load_brocast<simd_type>(1.), vtemp);
+            return fyx::simd::multiplies(load_brocast<simd_type>(0.5), vtemp);
+        }
+    }
+
+    float32x8 cdfnorm(float32x8 input) { return fyx::simd::detail::cdfnorm_soft_simulation<float32x8>(input); }
+    float64x4 cdfnorm(float64x4 input) { return fyx::simd::detail::cdfnorm_soft_simulation<float64x4>(input); }
+    float32x4 cdfnorm(float32x4 input) { return fyx::simd::detail::cdfnorm_soft_simulation<float32x4>(input); }
+    float64x2 cdfnorm(float64x2 input) { return fyx::simd::detail::cdfnorm_soft_simulation<float64x2>(input); }
+#endif
+#if defined(_FOYE_SIMD_HAS_FP16_)
+    float16x8 cdfnorm(float16x8 input)
+    {
+        __m256 vsrc = cvt8lane_fp16_to_fp32(input.data);
+        __m256 vres32 = fyx::simd::cdfnorm(float32x8{ vsrc }).data;
+        return float16x8{ cvt8lane_fp32_to_fp16(vres32) };
+    }
+    float16x16 cdfnorm(float16x16 input)
+    {
+        __m256 vsrc_low = cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(input.data));
+        __m256 vsrc_high = cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(input.data));
+        __m128i v_low = cvt8lane_fp32_to_fp16(fyx::simd::cdfnorm(float32x8{ vsrc_low }).data);
+        __m128i v_high = cvt8lane_fp32_to_fp16(fyx::simd::cdfnorm(float32x8{ vsrc_high }).data);
+        return float16x16{ FOYE_SIMD_MERGE_i(v_low, v_high) };
+    }
+#endif
+#if defined(_FOYE_SIMD_HAS_BF16_)
+    bfloat16x8 cdfnorm(bfloat16x8 input)
+    {
+        __m256 vsrc = cvt8lane_bf16_to_fp32(input.data);
+        __m256 vres32 = fyx::simd::cdfnorm(float32x8{ vsrc }).data;
+        return bfloat16x8{ cvt8lane_fp32_to_bf16(vres32) };
+    }
+    bfloat16x16 cdfnorm(bfloat16x16 input)
+    {
+        __m256 vsrc_low = cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(input.data));
+        __m256 vsrc_high = cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(input.data));
+        __m128i v_low = cvt8lane_fp32_to_bf16(fyx::simd::cdfnorm(float32x8{ vsrc_low }).data);
+        __m128i v_high = cvt8lane_fp32_to_bf16(fyx::simd::cdfnorm(float32x8{ vsrc_high }).data);
+        return bfloat16x16{ FOYE_SIMD_MERGE_i(v_low, v_high) };
+    }
+#endif
 
 #if defined(FOYE_SIMD_ENABLE_SVML)
     float32x8 log(float32x8 input) { return float32x8{ _mm256_log_ps(input.data) }; }
@@ -1064,8 +1264,245 @@ namespace fyx::simd
     float32x4 log(float32x4 input) { return float32x4{ _mm_log_ps(input.data) }; }
     float64x2 log(float64x2 input) { return float64x2{ _mm_log_pd(input.data) }; }
 #else
+    namespace detail
+    {
+        template<typename simd_type>
+        simd_type logFP32_soft_simulation(const simd_type& x)
+        {
+            using int_vector_t = fyx::simd::basic_simd<fyx::simd::detail::integral_t<
+                simd_type::scalar_bit_width, true>, simd_type::bit_width>;
+
+            const simd_type one = load_brocast<simd_type>(1.0f);
+            const simd_type sqrt_half = load_brocast<simd_type>(0.707106781186547524f);
+            const simd_type log_q1 = load_brocast<simd_type>(-2.12194440E-4f);
+            const simd_type log_q2 = load_brocast<simd_type>(0.693359375f);
+
+            const int_vector_t inv_mantissa_mask = load_brocast<int_vector_t>(
+                typename int_vector_t::scalar_t{ ~0x7f800000 });
+
+            int_vector_t x_bits = reinterpret<int_vector_t>(x);
+            int_vector_t exponent_bits = shift_right<23>(x_bits);
+
+            x_bits = bitwise_AND(x_bits, inv_mantissa_mask);
+            x_bits = bitwise_OR(x_bits, reinterpret<int_vector_t>(load_brocast<simd_type>(0.5f)));
+            simd_type mantissa = reinterpret<simd_type>(x_bits);
+
+            exponent_bits = minus(exponent_bits, load_brocast<int_vector_t>(
+                typename int_vector_t::scalar_t{ 0x7f }));
+            simd_type exponent = floating<simd_type>(exponent_bits);
+
+            exponent = plus(exponent, one);
+
+            simd_type needs_adjustment = less(mantissa, sqrt_half).as_basic_simd<simd_type>();
+
+            simd_type adjustment = bitwise_AND(mantissa, needs_adjustment);
+            mantissa = minus(mantissa, one);
+            exponent = minus(exponent, bitwise_AND(one, needs_adjustment));
+            mantissa = plus(mantissa, adjustment);
+
+            simd_type mantissa_squared = multiplies(mantissa, mantissa);
+
+            const simd_type poly_coeff0 = load_brocast<simd_type>(7.0376836292E-2f);
+            const simd_type poly_coeff1 = load_brocast<simd_type>(-1.1514610310E-1f);
+            const simd_type poly_coeff2 = load_brocast<simd_type>(1.1676998740E-1f);
+            const simd_type poly_coeff3 = load_brocast<simd_type>(-1.2420140846E-1f);
+            const simd_type poly_coeff4 = load_brocast<simd_type>(1.4249322787E-1f);
+            const simd_type poly_coeff5 = load_brocast<simd_type>(-1.6668057665E-1f);
+            const simd_type poly_coeff6 = load_brocast<simd_type>(2.0000714765E-1f);
+            const simd_type poly_coeff7 = load_brocast<simd_type>(-2.4999993993E-1f);
+            const simd_type poly_coeff8 = load_brocast<simd_type>(3.3333331174E-1f);
+
+            simd_type polynomial = fma(poly_coeff0, mantissa, poly_coeff1);
+            polynomial = fma(polynomial, mantissa, poly_coeff2);
+            polynomial = fma(polynomial, mantissa, poly_coeff3);
+            polynomial = fma(polynomial, mantissa, poly_coeff4);
+            polynomial = fma(polynomial, mantissa, poly_coeff5);
+            polynomial = fma(polynomial, mantissa, poly_coeff6);
+            polynomial = fma(polynomial, mantissa, poly_coeff7);
+            polynomial = fma(polynomial, mantissa, poly_coeff8);
+
+            polynomial = multiplies(polynomial, mantissa);
+            polynomial = multiplies(polynomial, mantissa_squared);
+
+            polynomial = fma(exponent, log_q1, polynomial);
+
+            polynomial = minus(polynomial, multiplies(mantissa_squared, load_brocast<simd_type>(0.5f)));
+
+            simd_type result = plus(mantissa, polynomial);
+            result = fma(exponent, log_q2, result);
+
+            const simd_type zero_bits = allzero_bits_as<simd_type>();
+            result = where_assign(
+                result,
+                reinterpret<simd_type>(load_brocast<int_vector_t>(
+                    static_cast<typename int_vector_t::scalar_t>(0xff800000))),
+                equal(x, zero_bits));
+
+            result = where_assign(
+                result,
+                reinterpret<simd_type>(load_brocast<int_vector_t>(
+                    static_cast<typename int_vector_t::scalar_t>(0x7fc00000))),
+                less(x, zero_bits));
+
+            result = where_assign(
+                result,
+                x,
+                equal(x, reinterpret<simd_type>(load_brocast<int_vector_t>(
+                    static_cast<typename int_vector_t::scalar_t>(0x7f800000)))));
+
+            return result;
+        }
+
+        template<typename simd_type>
+        simd_type logFP64_soft_simulation(const simd_type& x)
+        {
+            using int_vector_t = fyx::simd::basic_simd<fyx::simd::detail::integral_t<
+                simd_type::scalar_bit_width, true>, simd_type::bit_width>;
+
+            const simd_type ONE = load_brocast<simd_type>(1.0);
+            const simd_type SQRT_HALF = load_brocast<simd_type>(0.7071067811865475244);
+
+            const simd_type LOG_C0 = load_brocast<simd_type>(2.121944400546905827679e-4);
+            const simd_type LOG_C1 = load_brocast<simd_type>(0.693359375);
+
+            simd_type adjusted_x, exponent_part, numerator, denominator, result, temp, x_squared;
+            int_vector_t x_bits, exponent_bits;
+
+            const int_vector_t MANTISSA_MASK = load_brocast<int_vector_t>(
+                static_cast<typename int_vector_t::scalar_t>(~0x7ff0000000000000));
+
+            x_bits = reinterpret<int_vector_t>(x);
+
+            exponent_bits = shift_right<52>(x_bits);
+
+            x_bits = bitwise_AND(x_bits, MANTISSA_MASK);
+            x_bits = bitwise_OR(x_bits, reinterpret<int_vector_t>(load_brocast<simd_type>(0.5)));
+            adjusted_x = reinterpret<simd_type>(x_bits);
+
+            exponent_bits = minus(exponent_bits, load_brocast<int_vector_t>(
+                static_cast<typename int_vector_t::scalar_t>(0x3ff)));
+            exponent_part = floating<simd_type>(exponent_bits);
+
+            exponent_part = plus(exponent_part, ONE);
+
+            simd_type scale_mask = less(adjusted_x, SQRT_HALF).as_basic_simd<simd_type>();
+            temp = bitwise_AND(adjusted_x, scale_mask);
+            adjusted_x = minus(adjusted_x, ONE);
+            exponent_part = minus(exponent_part, bitwise_AND(ONE, scale_mask));
+            adjusted_x = plus(adjusted_x, temp);
+
+            x_squared = multiplies(adjusted_x, adjusted_x);
+
+            const simd_type NUM_COEF0 = load_brocast<simd_type>(1.01875663804580931796E-4);
+            const simd_type NUM_COEF1 = load_brocast<simd_type>(4.97494994976747001425E-1);
+            const simd_type NUM_COEF2 = load_brocast<simd_type>(4.70579119878881725854);
+            const simd_type NUM_COEF3 = load_brocast<simd_type>(1.44989225341610930846E1);
+            const simd_type NUM_COEF4 = load_brocast<simd_type>(1.79368678507819816313E1);
+            const simd_type NUM_COEF5 = load_brocast<simd_type>(7.70838733755885391666);
+
+            numerator = fma(NUM_COEF0, adjusted_x, NUM_COEF1);
+            numerator = fma(numerator, adjusted_x, NUM_COEF2);
+            numerator = fma(numerator, adjusted_x, NUM_COEF3);
+            numerator = fma(numerator, adjusted_x, NUM_COEF4);
+            numerator = fma(numerator, adjusted_x, NUM_COEF5);
+            numerator = multiplies(numerator, adjusted_x);
+            numerator = multiplies(numerator, x_squared);
+
+            const simd_type DEN_COEF0 = load_brocast<simd_type>(1.12873587189167450590E1);
+            const simd_type DEN_COEF1 = load_brocast<simd_type>(4.52279145837532221105E1);
+            const simd_type DEN_COEF2 = load_brocast<simd_type>(8.29875266912776603211E1);
+            const simd_type DEN_COEF3 = load_brocast<simd_type>(7.11544750618563894466E1);
+            const simd_type DEN_COEF4 = load_brocast<simd_type>(2.31251620126765340583E1);
+
+            denominator = plus(adjusted_x, DEN_COEF0);
+            denominator = fma(denominator, adjusted_x, DEN_COEF1);
+            denominator = fma(denominator, adjusted_x, DEN_COEF2);
+            denominator = fma(denominator, adjusted_x, DEN_COEF3);
+            denominator = fma(denominator, adjusted_x, DEN_COEF4);
+
+            result = divide(numerator, denominator);
+            result = minus(result, multiplies(exponent_part, LOG_C0));
+            result = minus(result, multiplies(x_squared, load_brocast<simd_type>(0.5)));
+
+            result = plus(result, adjusted_x);
+            result = fma(exponent_part, LOG_C1, result);
+
+            result = where_assign(
+                result,
+                reinterpret<simd_type>(load_brocast<int_vector_t>(
+                    static_cast<typename int_vector_t::scalar_t>(0xfff0000000000000))),
+                equal(x, allzero_bits_as<simd_type>()));
+
+            result = where_assign(
+                result,
+                reinterpret<simd_type>(load_brocast<int_vector_t>(
+                    static_cast<typename int_vector_t::scalar_t>(0x7ff8000000000000))),
+                less(x, allzero_bits_as<simd_type>()));
+
+            result = where_assign(
+                result,
+                x,
+                equal(x, reinterpret<simd_type>(load_brocast<int_vector_t>(
+                    static_cast<typename int_vector_t::scalar_t>(0x7ff0000000000000)))));
+
+            return result;
+        }
+    }
+
+    float32x8 log(float32x8 input) { return fyx::simd::detail::logFP32_soft_simulation<float32x8>(input); }
+    float64x4 log(float64x4 input) { return fyx::simd::detail::logFP64_soft_simulation<float64x4>(input); }
+    float32x4 log(float32x4 input) { return fyx::simd::detail::logFP32_soft_simulation<float32x4>(input); }
+    float64x2 log(float64x2 input) { return fyx::simd::detail::logFP64_soft_simulation<float64x2>(input); }
+#endif
+#if defined(_FOYE_SIMD_HAS_FP16_)
+    float16x8 log(float16x8 input)
+    {
+        __m256 vsrc = cvt8lane_fp16_to_fp32(input.data);
+        __m256 vres32 = fyx::simd::log(float32x8{ vsrc }).data;
+        return float16x8{ cvt8lane_fp32_to_fp16(vres32) };
+    }
+    float16x16 log(float16x16 input)
+    {
+        __m256 vsrc_low = cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(input.data));
+        __m256 vsrc_high = cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(input.data));
+        __m128i v_low = cvt8lane_fp32_to_fp16(fyx::simd::log(float32x8{ vsrc_low }).data);
+        __m128i v_high = cvt8lane_fp32_to_fp16(fyx::simd::log(float32x8{ vsrc_high }).data);
+        return float16x16{ FOYE_SIMD_MERGE_i(v_low, v_high) };
+    }
+#endif
+#if defined(_FOYE_SIMD_HAS_BF16_)
+    bfloat16x8 log(bfloat16x8 input)
+    {
+        __m256 vsrc = cvt8lane_bf16_to_fp32(input.data);
+        __m256 vres32 = fyx::simd::log(float32x8{ vsrc }).data;
+        return bfloat16x8{ cvt8lane_fp32_to_bf16(vres32) };
+    }
+    bfloat16x16 log(bfloat16x16 input)
+    {
+        __m256 vsrc_low = cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(input.data));
+        __m256 vsrc_high = cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(input.data));
+        __m128i v_low = cvt8lane_fp32_to_bf16(fyx::simd::log(float32x8{ vsrc_low }).data);
+        __m128i v_high = cvt8lane_fp32_to_bf16(fyx::simd::log(float32x8{ vsrc_high }).data);
+        return bfloat16x16{ FOYE_SIMD_MERGE_i(v_low, v_high) };
+    }
 #endif
 
+
+#if defined(FOYE_SIMD_ENABLE_SVML)
+    float32x8 cdfnorminv(float32x8 input) { return float32x8{ _mm256_cdfnorminv_ps(input.data) }; }
+    float64x4 cdfnorminv(float64x4 input) { return float64x4{ _mm256_cdfnorminv_pd(input.data) }; }
+    float32x4 cdfnorminv(float32x4 input) { return float32x4{ _mm_cdfnorminv_ps(input.data) }; }
+    float64x2 cdfnorminv(float64x2 input) { return float64x2{ _mm_cdfnorminv_pd(input.data) }; }
+#else
+#endif
+
+#if defined(FOYE_SIMD_ENABLE_SVML)
+    float32x8 erfinv(float32x8 input) { return float32x8{ _mm256_erfinv_ps(input.data) }; }
+    float64x4 erfinv(float64x4 input) { return float64x4{ _mm256_erfinv_pd(input.data) }; }
+    float32x4 erfinv(float32x4 input) { return float32x4{ _mm_erfinv_ps(input.data) }; }
+    float64x2 erfinv(float64x2 input) { return float64x2{ _mm_erfinv_pd(input.data) }; }
+#else
+#endif
 
 #if defined(FOYE_SIMD_ENABLE_SVML)
     float32x8 exp2(float32x8 input) { return float32x8{ _mm256_exp2_ps(input.data) }; }
@@ -1074,7 +1511,6 @@ namespace fyx::simd
     float64x2 exp2(float64x2 input) { return float64x2{ _mm_exp2_pd(input.data) }; }
 #else
 #endif
-
 
 #if defined(FOYE_SIMD_ENABLE_SVML)
     float32x8 exp10(float32x8 input) { return float32x8{ _mm256_exp10_ps(input.data) }; }
@@ -1129,113 +1565,143 @@ namespace fyx::simd
     float64x4 acos(float64x4 input) { return float64x4{ _mm256_acos_pd(input.data) }; }
     float32x4 acos(float32x4 input) { return float32x4{ _mm_acos_ps(input.data) }; }
     float64x2 acos(float64x2 input) { return float64x2{ _mm_acos_pd(input.data) }; }
+#endif
 
+#if defined(FOYE_SIMD_ENABLE_SVML)
     float32x8 tan(float32x8 input) { return float32x8{ _mm256_tan_ps(input.data) }; }
     float64x4 tan(float64x4 input) { return float64x4{ _mm256_tan_pd(input.data) }; }
     float32x4 tan(float32x4 input) { return float32x4{ _mm_tan_ps(input.data) }; }
     float64x2 tan(float64x2 input) { return float64x2{ _mm_tan_pd(input.data) }; }
+#else
+#endif
 
+#if defined(FOYE_SIMD_ENABLE_SVML)
     float32x8 atan(float32x8 input) { return float32x8{ _mm256_atan_ps(input.data) }; }
     float64x4 atan(float64x4 input) { return float64x4{ _mm256_atan_pd(input.data) }; }
     float32x4 atan(float32x4 input) { return float32x4{ _mm_atan_ps(input.data) }; }
     float64x2 atan(float64x2 input) { return float64x2{ _mm_atan_pd(input.data) }; }
+#else
+#endif
 
+#if defined(FOYE_SIMD_ENABLE_SVML)
     float32x8 sind(float32x8 input) { return float32x8{ _mm256_sind_ps(input.data) }; }
     float64x4 sind(float64x4 input) { return float64x4{ _mm256_sind_pd(input.data) }; }
     float32x4 sind(float32x4 input) { return float32x4{ _mm_sind_ps(input.data) }; }
     float64x2 sind(float64x2 input) { return float64x2{ _mm_sind_pd(input.data) }; }
+#else
+#endif
 
+#if defined(FOYE_SIMD_ENABLE_SVML)
     float32x8 cosd(float32x8 input) { return float32x8{ _mm256_cosd_ps(input.data) }; }
     float64x4 cosd(float64x4 input) { return float64x4{ _mm256_cosd_pd(input.data) }; }
     float32x4 cosd(float32x4 input) { return float32x4{ _mm_cosd_ps(input.data) }; }
     float64x2 cosd(float64x2 input) { return float64x2{ _mm_cosd_pd(input.data) }; }
+#else
+#endif
 
+#if defined(FOYE_SIMD_ENABLE_SVML)
     float32x8 tand(float32x8 input) { return float32x8{ _mm256_tand_ps(input.data) }; }
     float64x4 tand(float64x4 input) { return float64x4{ _mm256_tand_pd(input.data) }; }
     float32x4 tand(float32x4 input) { return float32x4{ _mm_tand_ps(input.data) }; }
     float64x2 tand(float64x2 input) { return float64x2{ _mm_tand_pd(input.data) }; }
+#else
+#endif
 
+#if defined(FOYE_SIMD_ENABLE_SVML)
     float32x8 sinh(float32x8 input) { return float32x8{ _mm256_sinh_ps(input.data) }; }
     float64x4 sinh(float64x4 input) { return float64x4{ _mm256_sinh_pd(input.data) }; }
     float32x4 sinh(float32x4 input) { return float32x4{ _mm_sinh_ps(input.data) }; }
     float64x2 sinh(float64x2 input) { return float64x2{ _mm_sinh_pd(input.data) }; }
+#else
+#endif
 
+#if defined(FOYE_SIMD_ENABLE_SVML)
     float32x8 cosh(float32x8 input) { return float32x8{ _mm256_cosh_ps(input.data) }; }
     float64x4 cosh(float64x4 input) { return float64x4{ _mm256_cosh_pd(input.data) }; }
     float32x4 cosh(float32x4 input) { return float32x4{ _mm_cosh_ps(input.data) }; }
     float64x2 cosh(float64x2 input) { return float64x2{ _mm_cosh_pd(input.data) }; }
+#else
+#endif
 
+#if defined(FOYE_SIMD_ENABLE_SVML)
     float32x8 tanh(float32x8 input) { return float32x8{ _mm256_tanh_ps(input.data) }; }
     float64x4 tanh(float64x4 input) { return float64x4{ _mm256_tanh_pd(input.data) }; }
     float32x4 tanh(float32x4 input) { return float32x4{ _mm_tanh_ps(input.data) }; }
     float64x2 tanh(float64x2 input) { return float64x2{ _mm_tanh_pd(input.data) }; }
+#else
+#endif
 
+#if defined(FOYE_SIMD_ENABLE_SVML)
     float32x8 asinh(float32x8 input) { return float32x8{ _mm256_asinh_ps(input.data) }; }
     float64x4 asinh(float64x4 input) { return float64x4{ _mm256_asinh_pd(input.data) }; }
     float32x4 asinh(float32x4 input) { return float32x4{ _mm_asinh_ps(input.data) }; }
     float64x2 asinh(float64x2 input) { return float64x2{ _mm_asinh_pd(input.data) }; }
+#else
+#endif
 
+#if defined(FOYE_SIMD_ENABLE_SVML)
     float32x8 acosh(float32x8 input) { return float32x8{ _mm256_acosh_ps(input.data) }; }
     float64x4 acosh(float64x4 input) { return float64x4{ _mm256_acosh_pd(input.data) }; }
     float32x4 acosh(float32x4 input) { return float32x4{ _mm_acosh_ps(input.data) }; }
     float64x2 acosh(float64x2 input) { return float64x2{ _mm_acosh_pd(input.data) }; }
+#else
+#endif
 
+#if defined(FOYE_SIMD_ENABLE_SVML)
     float32x8 atanh(float32x8 input) { return float32x8{ _mm256_atanh_ps(input.data) }; }
     float64x4 atanh(float64x4 input) { return float64x4{ _mm256_atanh_pd(input.data) }; }
     float32x4 atanh(float32x4 input) { return float32x4{ _mm_atanh_ps(input.data) }; }
     float64x2 atanh(float64x2 input) { return float64x2{ _mm_atanh_pd(input.data) }; }
+#else
+#endif
 
+#if defined(FOYE_SIMD_ENABLE_SVML)
     float32x8 logb(float32x8 input) { return float32x8{ _mm256_logb_ps(input.data) }; }
     float64x4 logb(float64x4 input) { return float64x4{ _mm256_logb_pd(input.data) }; }
     float32x4 logb(float32x4 input) { return float32x4{ _mm_logb_ps(input.data) }; }
     float64x2 logb(float64x2 input) { return float64x2{ _mm_logb_pd(input.data) }; }
+#else
+#endif
 
+#if defined(FOYE_SIMD_ENABLE_SVML)
     float32x8 expm1(float32x8 input) { return float32x8{ _mm256_expm1_ps(input.data) }; }
     float64x4 expm1(float64x4 input) { return float64x4{ _mm256_expm1_pd(input.data) }; }
     float32x4 expm1(float32x4 input) { return float32x4{ _mm_expm1_ps(input.data) }; }
     float64x2 expm1(float64x2 input) { return float64x2{ _mm_expm1_pd(input.data) }; }
+#else
+#endif
 
+#if defined(FOYE_SIMD_ENABLE_SVML)
     float32x8 invsqrt(float32x8 input) { return float32x8{ _mm256_invsqrt_ps(input.data) }; }
     float64x4 invsqrt(float64x4 input) { return float64x4{ _mm256_invsqrt_pd(input.data) }; }
     float32x4 invsqrt(float32x4 input) { return float32x4{ _mm_invsqrt_ps(input.data) }; }
     float64x2 invsqrt(float64x2 input) { return float64x2{ _mm_invsqrt_pd(input.data) }; }
+#else
+#endif
 
+#if defined(FOYE_SIMD_ENABLE_SVML)
     float32x8 cbrt(float32x8 input) { return float32x8{ _mm256_cbrt_ps(input.data) }; }
     float64x4 cbrt(float64x4 input) { return float64x4{ _mm256_cbrt_pd(input.data) }; }
     float32x4 cbrt(float32x4 input) { return float32x4{ _mm_cbrt_ps(input.data) }; }
     float64x2 cbrt(float64x2 input) { return float64x2{ _mm_cbrt_pd(input.data) }; }
+#else
+#endif
 
+#if defined(FOYE_SIMD_ENABLE_SVML)
     float32x8 invcbrt(float32x8 input) { return float32x8{ _mm256_invcbrt_ps(input.data) }; }
     float64x4 invcbrt(float64x4 input) { return float64x4{ _mm256_invcbrt_pd(input.data) }; }
     float32x4 invcbrt(float32x4 input) { return float32x4{ _mm_invcbrt_ps(input.data) }; }
     float64x2 invcbrt(float64x2 input) { return float64x2{ _mm_invcbrt_pd(input.data) }; }
+#else
+#endif
 
-    float32x8 cdfnorm(float32x8 input) { return float32x8{ _mm256_cdfnorm_ps(input.data) }; }
-    float64x4 cdfnorm(float64x4 input) { return float64x4{ _mm256_cdfnorm_pd(input.data) }; }
-    float32x4 cdfnorm(float32x4 input) { return float32x4{ _mm_cdfnorm_ps(input.data) }; }
-    float64x2 cdfnorm(float64x2 input) { return float64x2{ _mm_cdfnorm_pd(input.data) }; }
-
-    float32x8 cdfnorminv(float32x8 input) { return float32x8{ _mm256_cdfnorminv_ps(input.data) }; }
-    float64x4 cdfnorminv(float64x4 input) { return float64x4{ _mm256_cdfnorminv_pd(input.data) }; }
-    float32x4 cdfnorminv(float32x4 input) { return float32x4{ _mm_cdfnorminv_ps(input.data) }; }
-    float64x2 cdfnorminv(float64x2 input) { return float64x2{ _mm_cdfnorminv_pd(input.data) }; }
-
-    float32x8 erfinv(float32x8 input) { return float32x8{ _mm256_erfinv_ps(input.data) }; }
-    float64x4 erfinv(float64x4 input) { return float64x4{ _mm256_erfinv_pd(input.data) }; }
-    float32x4 erfinv(float32x4 input) { return float32x4{ _mm_erfinv_ps(input.data) }; }
-    float64x2 erfinv(float64x2 input) { return float64x2{ _mm_erfinv_pd(input.data) }; }
-
-    float32x8 fmod(float32x8 arg0, float32x8 arg1) { return float32x8{ _mm256_fmod_ps(arg0.data, arg1.data) }; }
-    float64x4 fmod(float64x4 arg0, float64x4 arg1) { return float64x4{ _mm256_fmod_pd(arg0.data, arg1.data) }; }
-    float32x4 fmod(float32x4 arg0, float32x4 arg1) { return float32x4{ _mm_fmod_ps(arg0.data, arg1.data) }; }
-    float64x2 fmod(float64x2 arg0, float64x2 arg1) { return float64x2{ _mm_fmod_pd(arg0.data, arg1.data) }; }
-
+#if defined(FOYE_SIMD_ENABLE_SVML)
     float32x8 atan2(float32x8 arg0, float32x8 arg1) { return float32x8{ _mm256_atan2_ps(arg0.data, arg1.data) }; }
     float64x4 atan2(float64x4 arg0, float64x4 arg1) { return float64x4{ _mm256_atan2_pd(arg0.data, arg1.data) }; }
     float32x4 atan2(float32x4 arg0, float32x4 arg1) { return float32x4{ _mm_atan2_ps(arg0.data, arg1.data) }; }
     float64x2 atan2(float64x2 arg0, float64x2 arg1) { return float64x2{ _mm_atan2_pd(arg0.data, arg1.data) }; }
+#else
 #endif
-
 
 #if defined(FOYE_SIMD_ENABLE_SVML)
     float32x8 pow(float32x8 arg0, float32x8 arg1) { return float32x8{ _mm256_pow_ps(arg0.data, arg1.data) }; }
