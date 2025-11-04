@@ -1,4 +1,4 @@
-﻿#ifndef _FOYE_SIMD_DEF_HPP_
+#ifndef _FOYE_SIMD_DEF_HPP_
 #define _FOYE_SIMD_DEF_HPP_
 #pragma once
 
@@ -73,21 +73,28 @@ namespace fyx::simd
         basic_mask() noexcept = default;
 
         template<typename T>
-        explicit basic_mask(basic_simd<T, bits_width> from_simd) noexcept 
+        basic_mask(basic_simd<T, bits_width> from_simd) noexcept 
             : data(fyx::simd::detail::basic_reinterpret<vector_t, 
                 typename basic_simd<T, bits_width>::vector_t>(from_simd.data)) { }
 
         template<typename input_type> 
-            requires(sizeof(input_type) == sizeof(vector_t) && fyx::simd::detail::is_mm_vector_type_v<input_type>)
-        explicit basic_mask(input_type input) noexcept
+        requires(sizeof(input_type) == sizeof(vector_t) && fyx::simd::detail::is_mm_vector_type_v<input_type>)
+        basic_mask(input_type input) noexcept
             : data(fyx::simd::detail::basic_reinterpret<vector_t, input_type>(input)) { }
 
-
-        template<typename output_type> requires(sizeof(output_type) == sizeof(vector_t)
-            && fyx::simd::detail::is_mm_vector_type_v<output_type>)
+        template<typename output_type> 
+         requires(sizeof(output_type) == sizeof(vector_t) && fyx::simd::detail::is_mm_vector_type_v<output_type>)
         operator output_type() const noexcept
         {
             return fyx::simd::detail::basic_reinterpret<output_type, vector_t>(this->data);
+        }
+
+        template<typename simd_type>
+        requires(simd_type::lane_width == lane_width && simd_type::bit_width == bit_width)
+        simd_type as_basic_simd() const noexcept
+        {
+            return simd_type{ fyx::simd::detail::basic_reinterpret<
+                typename simd_type::vector_t>(this->data) };
         }
 
         FOYE_SIMD_PERFORMANCE_MATTER bool operator [] (std::size_t index) const noexcept
@@ -438,8 +445,8 @@ static_assert(is_half_basic_simd_v<type_for_check>, \
         return basic_simd<source_scalar, input_width * 2>{ fyx::simd::detail::merge(low.data, high.data) };
     }
 
-    template<std::size_t index, typename simd_type> requires(fyx::simd::is_basic_simd_v<simd_type>
-        && (index <= (simd_type::lane_width - 1) && index >= 0))
+    template<std::size_t index, typename simd_type> 
+    requires(fyx::simd::is_basic_simd_v<simd_type> && (index <= (simd_type::lane_width - 1) && index >= 0))
     typename simd_type::scalar_t extract_single_from(simd_type input)
     {
         using scalar_type = typename simd_type::scalar_t;
@@ -455,8 +462,8 @@ static_assert(is_half_basic_simd_v<type_for_check>, \
         }
     }
 
-    template<std::size_t index, typename mask_type> requires(fyx::simd::is_basic_simd_v<mask_type>
-        && (index <= (mask_type::lane_width - 1) && index >= 0))
+    template<std::size_t index, typename mask_type> 
+    requires(fyx::simd::is_basic_simd_v<mask_type> && (index <= (mask_type::lane_width - 1) && index >= 0))
     bool extract_single_from(mask_type input)
     {
         constexpr std::size_t single_width_bits = mask_type::bit_width / mask_type::lane_width;
