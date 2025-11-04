@@ -1808,34 +1808,361 @@ namespace fyx::simd
             return result;
         }
 
-        //template<typename simd_type>
-        //simd_type pow_fexponent_soft_simulation(simd_type base, simd_type exponent);
+        template<typename simd_type>
+        simd_type powF32_fexponent_soft_simulation(simd_type base, simd_type exponent)
+        {
+            const mask_from_simd_t<simd_type> zero_mask = equal(base, allzero_bits_as<simd_type>());
+            const mask_from_simd_t<simd_type> one_mask = equal(base, load_brocast<simd_type>(1.0));
+            const mask_from_simd_t<simd_type> neg_mask = less(base, allzero_bits_as<simd_type>());
+
+            simd_type result_one = load_brocast<simd_type>(1.0);
+
+            mask_from_simd_t<simd_type> pos_exp_mask = greater(exponent, allzero_bits_as<simd_type>());
+            simd_type zero_result = allzero_bits_as<simd_type>();
+            simd_type inf_result = load_brocast<simd_type>(std::numeric_limits<typename simd_type::scalar_t>::infinity());
+            simd_type result_zero = where_assign(inf_result, zero_result, pos_exp_mask);
+
+            using sint_simd_t = basic_simd<detail::integral_t<
+                simd_type::scalar_bit_width, true>, simd_type::bit_width>;
+
+            sint_simd_t exp_int = trunc_as_i(exponent);
+            simd_type exp_float = floating<simd_type>(exp_int);
+            mask_from_simd_t<simd_type> int_mask = equal(exponent, exp_float);
+
+            simd_type nan_result = load_brocast<simd_type>(std::numeric_limits<typename simd_type::scalar_t>::quiet_NaN());
+            simd_type neg_valid = bitwise_AND(neg_mask.as_basic_simd<simd_type>(), int_mask.as_basic_simd<simd_type>());
+
+            simd_type abs_base = bitwise_AND(base, reinterpret<simd_type>(load_brocast<sint_simd_t>(0x7FFFFFFF)));
+            simd_type log_abs = log(abs_base);
+            simd_type exp_result = exp(multiplies(exponent, log_abs));
+
+            sint_simd_t exp_mod2 = bitwise_AND(exp_int, load_brocast<sint_simd_t>(1));
+            simd_type sign = reinterpret<simd_type>(shift_left<31>(reinterpret<as_unsigned_type<sint_simd_t>>(exp_mod2)));
+            simd_type signed_result = bitwise_OR(exp_result, sign);
+            
+            simd_type result = where_assign(exp_result, signed_result, mask_from_simd_t<simd_type>{ neg_valid });
+            result = where_assign(result, result_zero, zero_mask);
+            result = where_assign(result, result_one, one_mask);
+            result = where_assign(result, nan_result, 
+                mask_from_simd_t<simd_type>{ 
+                bitwise_ANDNOT(
+                    int_mask.as_basic_simd<simd_type>(), 
+                    neg_mask.as_basic_simd<simd_type>()) }
+            );
+
+            return result;
+        }
+
+        template<typename simd_type>
+        simd_type powF64_fexponent_soft_simulation(simd_type base, simd_type exponent)
+        {
+            const simd_type zero = load_brocast<simd_type>(0.0);
+            const simd_type one = load_brocast<simd_type>(1.0);
+            const simd_type nan = load_brocast<simd_type>(std::numeric_limits<typename simd_type::scalar_t>::quiet_NaN());
+            const simd_type inf = load_brocast<simd_type>(std::numeric_limits<typename simd_type::scalar_t>::infinity());
+
+            simd_type result = nan;
+
+            mask_from_simd_t<simd_type> mask_base_zero = equal(base, zero);
+            mask_from_simd_t<simd_type> mask_exp_zero = equal(exponent, zero);
+            mask_from_simd_t<simd_type> mask_base_one = equal(base, one);
+            mask_from_simd_t<simd_type> mask_base_neg = less(base, zero);
+
+            result = where_assign(result, one, mask_base_one);
+
+            simd_type mask_zero_zero = bitwise_AND(
+                mask_base_zero.as_basic_simd<simd_type>(), 
+                mask_exp_zero.as_basic_simd<simd_type>());
+
+            result = where_assign(result, one, mask_from_simd_t<simd_type>{ mask_zero_zero });
+
+            mask_from_simd_t<simd_type> mask_pos_exp = greater(exponent, zero);
+            simd_type zero_to_pos = bitwise_AND(
+                mask_base_zero.as_basic_simd<simd_type>(), 
+                mask_pos_exp.as_basic_simd<simd_type>());
+
+            result = where_assign(result, zero, mask_from_simd_t<simd_type>{ zero_to_pos });
+
+            mask_from_simd_t<simd_type> mask_neg_exp = less(exponent, zero);
+            simd_type zero_to_neg = bitwise_AND(
+                mask_base_zero.as_basic_simd<simd_type>(), 
+                mask_neg_exp.as_basic_simd<simd_type>());
+
+            result = where_assign(result, inf, mask_from_simd_t<simd_type>{ zero_to_neg });
+
+            simd_type exp_int = round(exponent);
+            mask_from_simd_t<simd_type> mask_exp_not_int = not_equal(exponent, exp_int);
+            simd_type neg_base_non_int_exp = bitwise_AND(
+                mask_base_neg.as_basic_simd<simd_type>(), 
+                mask_exp_not_int.as_basic_simd<simd_type>());
+
+            result = where_assign(result, nan, mask_from_simd_t<simd_type>{ neg_base_non_int_exp });
+
+            mask_from_simd_t<simd_type> normal_mask = not_nan(result);
+            normal_mask = mask_from_simd_t<simd_type>{ bitwise_NOT(normal_mask.as_basic_simd<simd_type>()) };
+
+            int movedmask{};
+            if constexpr (fyx::simd::is_256bits_simd_v<simd_type>)
+            {
+                movedmask = _mm256_movemask_pd(
+                    detail::basic_reinterpret<__m256d>(normal_mask.data));
+            }
+            else
+            {
+                movedmask = _mm_movemask_pd(
+                    detail::basic_reinterpret<__m128d>(normal_mask.data));
+            }
+
+            if (movedmask != 0)
+            {
+                simd_type safe_base = where_assign(base, one, mask_base_zero);
+                safe_base = where_assign(safe_base, one, mask_base_neg);
+
+                simd_type log_base = log(safe_base);
+                simd_type product = multiplies(exponent, log_base);
+                simd_type normal_result = exp(product);
+
+                result = where_assign(result, normal_result, normal_mask);
+            }
+
+            return result;
+        }
     }
 
-    float32x8 pow(float32x8 arg0, sint32x8 arg1) { return detail::pow_iexponent_soft_simulation(arg0, arg1); }
-    float64x4 pow(float64x4 arg0, sint64x4 arg1) { return detail::pow_iexponent_soft_simulation(arg0, arg1); }
-    float32x4 pow(float32x4 arg0, sint32x4 arg1) { return detail::pow_iexponent_soft_simulation(arg0, arg1); }
-    float64x2 pow(float64x2 arg0, sint64x2 arg1) { return detail::pow_iexponent_soft_simulation(arg0, arg1); }
+    float32x8 pow(float32x8 base, sint32x8 exponent) { return detail::pow_iexponent_soft_simulation(base, exponent); }
+    float64x4 pow(float64x4 base, sint64x4 exponent) { return detail::pow_iexponent_soft_simulation(base, exponent); }
+    float32x4 pow(float32x4 base, sint32x4 exponent) { return detail::pow_iexponent_soft_simulation(base, exponent); }
+    float64x2 pow(float64x2 base, sint64x2 exponent) { return detail::pow_iexponent_soft_simulation(base, exponent); }
 
-    //float32x8 pow(float32x8 arg0, float32x8 arg1);
-    //float64x4 pow(float64x4 arg0, float64x4 arg1);
-    //float32x4 pow(float32x4 arg0, float32x4 arg1);
-    //float64x2 pow(float64x2 arg0, float64x2 arg1);
+    float32x8 pow(float32x8 base, float32x8 exponent) { return detail::powF32_fexponent_soft_simulation(base, exponent); }
+    float64x4 pow(float64x4 base, float64x4 exponent) { return detail::powF64_fexponent_soft_simulation(base, exponent); }
+    float32x4 pow(float32x4 base, float32x4 exponent) { return detail::powF32_fexponent_soft_simulation(base, exponent); }
+    float64x2 pow(float64x2 base, float64x2 exponent) { return detail::powF64_fexponent_soft_simulation(base, exponent); }
 #endif
-//#if defined(_FOYE_SIMD_HAS_FP16_)
-//    float16x8 pow(float16x8 arg0, sint16x8 arg1);
-//    float16x16 pow(float16x16 arg0, sint16x16 arg1);
-//
-//    float16x8 pow(float16x8 arg0, float16x8 arg1);
-//    float16x16 pow(float16x16 arg0, float16x16 arg1);
-//#endif
-//#if defined(_FOYE_SIMD_HAS_BF16_)
-//    bfloat16x8 pow(bfloat16x8 arg0, sint16x8 arg1);
-//    bfloat16x16 pow(bfloat16x16 arg0, sint16x16 arg1);
-//
-//    bfloat16x8 pow(bfloat16x8 arg0, bfloat16x8 arg1);
-//    bfloat16x16 pow(bfloat16x16 arg0, bfloat16x16 arg1);
-//#endif
+#if defined(_FOYE_SIMD_HAS_FP16_)
+    float16x8 pow(float16x8 base, sint16x8 exponent)
+    {
+        float32x8 base32 = fyx::simd::expand<float32x8>(base);
+        sint32x8 exponent32 = fyx::simd::expand<sint32x8>(exponent);
+        float32x8 result32 = fyx::simd::pow(base32, exponent32);
+        return fyx::simd::narrowing<float16x8>(result32);
+    }
+
+    float16x16 pow(float16x16 base, sint16x16 exponent)
+    {
+        float32x8 result_low = fyx::simd::pow(
+            fyx::simd::expand_low<float32x8>(base),
+            fyx::simd::expand_low<sint32x8>(exponent));
+
+        float32x8 result_high = fyx::simd::pow(
+            fyx::simd::expand_high<float32x8>(base),
+            fyx::simd::expand_high<sint32x8>(exponent));
+
+        return fyx::simd::merge(
+            fyx::simd::narrowing<float16x8>(result_low),
+            fyx::simd::narrowing<float16x8>(result_high)
+        );
+    }
+
+    float16x8 pow(float16x8 base, float16x8 exponent)
+    {
+        float32x8 base32 = fyx::simd::expand<float32x8>(base);
+        float32x8 exponent32 = fyx::simd::expand<float32x8>(exponent);
+        float32x8 result32 = fyx::simd::pow(base32, exponent32);
+        return fyx::simd::narrowing<float16x8>(result32);
+    }
+
+    float16x16 pow(float16x16 base, float16x16 exponent)
+    {
+        float32x8 result_low = fyx::simd::pow(
+            fyx::simd::expand_low<float32x8>(base),
+            fyx::simd::expand_low<float32x8>(exponent));
+
+        float32x8 result_high = fyx::simd::pow(
+            fyx::simd::expand_high<float32x8>(base),
+            fyx::simd::expand_high<float32x8>(exponent));
+
+        return fyx::simd::merge(
+            fyx::simd::narrowing<float16x8>(result_low),
+            fyx::simd::narrowing<float16x8>(result_high)
+        );
+    }
+#endif
+#if defined(_FOYE_SIMD_HAS_BF16_)
+    bfloat16x8 pow(bfloat16x8 base, sint16x8 exponent)
+    {
+        float32x8 base32 = fyx::simd::expand<float32x8>(base);
+        sint32x8 exponent32 = fyx::simd::expand<sint32x8>(exponent);
+        float32x8 result32 = fyx::simd::pow(base32, exponent32);
+        return fyx::simd::narrowing<bfloat16x8>(result32);
+    }
+
+    bfloat16x16 pow(bfloat16x16 base, sint16x16 exponent)
+    {
+        float32x8 result_low = fyx::simd::pow(
+            fyx::simd::expand_low<float32x8>(base),
+            fyx::simd::expand_low<sint32x8>(exponent));
+
+        float32x8 result_high = fyx::simd::pow(
+            fyx::simd::expand_high<float32x8>(base),
+            fyx::simd::expand_high<sint32x8>(exponent));
+
+        return fyx::simd::merge(
+            fyx::simd::narrowing<bfloat16x8>(result_low),
+            fyx::simd::narrowing<bfloat16x8>(result_high)
+        );
+    }
+
+    bfloat16x8 pow(bfloat16x8 base, bfloat16x8 exponent)
+    {
+        float32x8 base32 = fyx::simd::expand<float32x8>(base);
+        float32x8 exponent32 = fyx::simd::expand<float32x8>(exponent);
+        float32x8 result32 = fyx::simd::pow(base32, exponent32);
+        return fyx::simd::narrowing<bfloat16x8>(result32);
+    }
+
+    bfloat16x16 pow(bfloat16x16 base, bfloat16x16 exponent)
+    {
+        float32x8 result_low = fyx::simd::pow(
+            fyx::simd::expand_low<float32x8>(base),
+            fyx::simd::expand_low<float32x8>(exponent));
+
+        float32x8 result_high = fyx::simd::pow(
+            fyx::simd::expand_high<float32x8>(base),
+            fyx::simd::expand_high<float32x8>(exponent));
+
+        return fyx::simd::merge(
+            fyx::simd::narrowing<bfloat16x8>(result_low),
+            fyx::simd::narrowing<bfloat16x8>(result_high)
+        );
+    }
+#endif
+
+#if defined(FOYE_SIMD_ENABLE_SVML)
+    float32x8 logb(float32x8 input) { return float32x8{ _mm256_logb_ps(input.data) }; }
+    float64x4 logb(float64x4 input) { return float64x4{ _mm256_logb_pd(input.data) }; }
+    float32x4 logb(float32x4 input) { return float32x4{ _mm_logb_ps(input.data) }; }
+    float64x2 logb(float64x2 input) { return float64x2{ _mm_logb_pd(input.data) }; }
+#else
+    namespace detail
+    {
+        template<typename simd_type>
+        simd_type logbF32_fexponent_soft_simulation(simd_type input)
+        {
+            using sint_simd_t = basic_simd<detail::integral_t<
+                simd_type::scalar_bit_width, true>, simd_type::bit_width>;
+
+            sint_simd_t x_int = reinterpret<sint_simd_t>(input);
+
+            sint_simd_t exponent_bits = shift_right<23>(x_int);
+            sint_simd_t exponent = bitwise_AND(exponent_bits, load_brocast<sint_simd_t>(0xFF));
+
+            mask_from_simd_t<simd_type> is_zero = equal(input, allzero_bits_as<simd_type>());
+
+            simd_type is_denormal = bitwise_AND(
+                equal(reinterpret<simd_type>(exponent), allzero_bits_as<simd_type>()).as_basic_simd<simd_type>(),
+                not_equal(input, allzero_bits_as<simd_type>()).as_basic_simd<simd_type>()
+            );
+
+            sint_simd_t mantissa = bitwise_AND(x_int, load_brocast<sint_simd_t>(0x007FFFFF));
+
+            simd_type result_normal = floating<simd_type>(minus(exponent, load_brocast<sint_simd_t>(127)));
+
+            const simd_type minus_inf = load_brocast<simd_type>(-INFINITY);
+            const simd_type plus_inf = load_brocast<simd_type>(INFINITY);
+            const simd_type nan_val = load_brocast<simd_type>(NAN);
+
+            result_normal = where_assign(result_normal, minus_inf, is_zero);
+
+            mask_from_simd_t<simd_type> is_inf_nan = equal(reinterpret<simd_type>(exponent),
+                reinterpret<simd_type>(load_brocast<sint_simd_t>(0xFF)));
+
+            simd_type is_nan = bitwise_AND(is_inf_nan.as_basic_simd<simd_type>(),
+                not_equal(reinterpret<simd_type>(mantissa),
+                    allzero_bits_as<simd_type>()).as_basic_simd<simd_type>());
+
+            simd_type is_inf = bitwise_AND(is_inf_nan.as_basic_simd<simd_type>(),
+                equal(reinterpret<simd_type>(mantissa),
+                    allzero_bits_as<simd_type>()).as_basic_simd<simd_type>());
+
+
+            result_normal = where_assign(result_normal, plus_inf, is_inf.as_basic_mask());
+            result_normal = where_assign(result_normal, nan_val, is_nan.as_basic_mask());
+
+            simd_type denormal_scaled = multiplies(input, load_brocast<simd_type>(8388608.0f));
+            sint_simd_t denormal_scaled_int = reinterpret<sint_simd_t>(denormal_scaled);
+            sint_simd_t denormal_exponent_bits = shift_right<23>(denormal_scaled_int);
+            sint_simd_t denormal_exponent = bitwise_AND(denormal_exponent_bits, load_brocast<sint_simd_t>(0xFF));
+
+            simd_type result_denormal = minus(
+                floating<simd_type>(minus(denormal_exponent, load_brocast<sint_simd_t>(127))),
+                load_brocast<simd_type>(23.0f)
+            );
+
+            simd_type result = where_assign(result_normal, result_denormal, is_denormal.as_basic_mask());
+            return result;
+        }
+
+        template<typename simd_type>
+        simd_type logbF64_fexponent_soft_simulation(simd_type input)
+        {
+            using sint_simd_t = basic_simd<detail::integral_t<
+                simd_type::scalar_bit_width, true>, simd_type::bit_width>;
+
+            sint_simd_t x_int = reinterpret<sint_simd_t>(input);
+
+            sint_simd_t exponent_bits = shift_right<52>(x_int);
+            sint_simd_t exponent = bitwise_AND(exponent_bits, load_brocast<sint_simd_t>(0x7FF));
+
+            mask_from_simd_t<simd_type> is_zero = equal(input, allzero_bits_as<simd_type>());
+
+            simd_type is_denormal = bitwise_AND(
+                equal(reinterpret<simd_type>(exponent), allzero_bits_as<simd_type>()).as_basic_simd<simd_type>(),
+                not_equal(input, allzero_bits_as<simd_type>()).as_basic_simd<simd_type>()
+            );
+
+            simd_type result_normal = floating<simd_type>(minus(exponent, load_brocast<sint_simd_t>(1023)));
+
+            simd_type minus_inf = load_brocast<simd_type>(-INFINITY);
+            simd_type plus_inf = load_brocast<simd_type>(INFINITY);
+            simd_type nan_val = load_brocast<simd_type>(NAN);
+
+            result_normal = where_assign(result_normal, minus_inf, is_zero);
+
+            mask_from_simd_t<simd_type> is_inf_nan = equal(reinterpret<simd_type>(exponent),
+                reinterpret<simd_type>(load_brocast<sint_simd_t>(0x7FF)));
+
+            sint_simd_t mantissa = bitwise_AND(x_int, load_brocast<sint_simd_t>(0x000FFFFFFFFFFFFF));
+
+            simd_type is_nan = bitwise_AND(is_inf_nan.as_basic_simd<simd_type>(),
+                not_equal(reinterpret<simd_type>(mantissa), allzero_bits_as<simd_type>()).as_basic_simd<simd_type>());
+
+            simd_type is_inf = bitwise_AND(is_inf_nan.as_basic_simd<simd_type>(),
+                equal(reinterpret<simd_type>(mantissa), allzero_bits_as<simd_type>()).as_basic_simd<simd_type>());
+
+            result_normal = where_assign(result_normal, plus_inf, is_inf.as_basic_mask());
+            result_normal = where_assign(result_normal, nan_val, is_nan.as_basic_mask());
+
+            simd_type denormal_scaled = multiplies(input, load_brocast<simd_type>(4503599627370496.0));
+            sint_simd_t denormal_scaled_int = reinterpret<sint_simd_t>(denormal_scaled);
+            sint_simd_t denormal_exponent_bits = shift_right<52>(denormal_scaled_int);
+            sint_simd_t denormal_exponent = bitwise_AND(denormal_exponent_bits, load_brocast<sint_simd_t>(0x7FF));
+
+            simd_type result_denormal = minus(
+                floating<simd_type>(minus(denormal_exponent, load_brocast<sint_simd_t>(1023))),
+                load_brocast<simd_type>(52.0)
+            );
+
+            simd_type result = where_assign(result_normal, result_denormal, is_denormal.as_basic_mask());
+            return result;
+        }
+    }
+
+    float32x8 logb(float32x8 input) { return fyx::simd::detail::logbF32_fexponent_soft_simulation(input); }
+    float32x4 logb(float32x4 input) { return fyx::simd::detail::logbF32_fexponent_soft_simulation(input); }
+    float64x4 logb(float64x4 input) { return fyx::simd::detail::logbF64_fexponent_soft_simulation(input); }
+    float64x2 logb(float64x2 input) { return fyx::simd::detail::logbF64_fexponent_soft_simulation(input); }
+#endif
 }
 
 #endif
