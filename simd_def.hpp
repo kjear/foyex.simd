@@ -6,6 +6,10 @@
 
 namespace fyx::simd
 {
+    template<std::size_t count_element, std::size_t bits_width>
+    struct alignas(bits_width / CHAR_BIT) basic_mask;
+
+
     template<typename T, std::size_t bits_width>
     struct alignas(bits_width / CHAR_BIT) basic_simd
     {
@@ -55,6 +59,11 @@ namespace fyx::simd
             scalar_t temp[lane_width] = { };
             fyx::simd::detail::store_unaligned(this->data, temp);
             return temp[index];
+        }
+
+        basic_mask<lane_width, bits_width> as_basic_mask() const noexcept
+        {
+            return basic_mask<lane_width, bits_width>{ *this };
         }
     };
 
