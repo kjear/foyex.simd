@@ -5,6 +5,7 @@
 #include "simd_def.hpp"
 #include "simd_utility.hpp"
 #include "simd_cvt.hpp"
+#include "simd_shift.hpp"
 
 namespace fyx::simd
 {
@@ -52,528 +53,138 @@ basic_simd<T, bits_width> bitwise_##NAME(basic_simd<T, bits_width> lhs, basic_si
     }
 }
 
+
 namespace fyx::simd
 {
-#if defined(_FOYE_SIMD_ENABLE_EMULATED_)
-    uint16x8 shift_right(uint16x8 input, as_unsigned_type<uint16x8> shift_amount)
-    {
-        __m256i temp32 = _mm256_cvtepu16_epi32(input.data);
-        __m256i temp_shift_amount32 = _mm256_cvtepu16_epi32(shift_amount.data);
-        __m256i res = _mm256_srlv_epi32(temp32, temp_shift_amount32);
 
-        __m256i shifted = _mm256_srli_epi32(res, 16);
-        __m256i masked = _mm256_and_si256(res, _mm256_set1_epi32(0xFFFF));
-        __m128i low_mask = _mm256_extractf128_si256(masked, 0);
-        __m128i high_mask = _mm256_extractf128_si256(masked, 1);
-        return uint16x8{ _mm_packus_epi32(low_mask, high_mask) };
-    }
 
-    uint8x16 shift_right(uint8x16 input, as_unsigned_type<uint8x16> shift_amount)
-    {
-        uint16x8 res_low = fyx::simd::shift_right(
-            fyx::simd::expand_low<uint16x8>(input),
-            fyx::simd::expand_low<as_unsigned_type<uint16x8>>(shift_amount)
-        );
 
-        uint16x8 res_high = fyx::simd::shift_right(
-            fyx::simd::expand_high<uint16x8>(input),
-            fyx::simd::expand_high<as_unsigned_type<uint16x8>>(shift_amount)
-        );
 
-        uint16x16 res = fyx::simd::merge(res_low, res_high);
-        return fyx::simd::narrowing<uint8x16>(res);
-    }
-
-#endif
-    uint32x4 shift_right(uint32x4 input, as_unsigned_type<uint32x4> shift_amount)
-    {
-        return uint32x4{ _mm_srlv_epi32(input.data, shift_amount.data) };
-    }
-
-    uint64x2 shift_right(uint64x2 input, as_unsigned_type<uint64x2> shift_amount)
-    {
-        return uint64x2{ _mm_srlv_epi64(input.data, shift_amount.data) };
-    }
-
-#if defined(_FOYE_SIMD_ENABLE_EMULATED_)
-    uint16x16 shift_right(uint16x16 input, as_unsigned_type<uint16x16> shift_amount)
-    {
-        uint16x8 res_low = fyx::simd::shift_right(input.low_part(), shift_amount.low_part());
-        uint16x8 res_high = fyx::simd::shift_right(input.high_part(), shift_amount.high_part());
-        return fyx::simd::merge(res_low, res_high);
-    }
-
-    uint8x32 shift_right(uint8x32 input, as_unsigned_type<uint8x32> shift_amount)
-    {
-        uint16x16 res_low = fyx::simd::shift_right(
-            fyx::simd::expand_low<uint16x16>(input),
-            fyx::simd::expand_low<as_unsigned_type<uint16x16>>(shift_amount)
-        );
-
-        uint16x16 res_high = fyx::simd::shift_right(
-            fyx::simd::expand_high<uint16x16>(input),
-            fyx::simd::expand_high<as_unsigned_type<uint16x16>>(shift_amount)
-        );
-
-        uint8x16 res_low8 = fyx::simd::narrowing<uint8x16>(res_low);
-        uint8x16 res_high8 = fyx::simd::narrowing<uint8x16>(res_high);
-        return fyx::simd::merge(res_low8, res_high8);
-    }
-
-#endif
-    uint32x8 shift_right(uint32x8 input, as_unsigned_type<uint32x8> shift_amount)
-    {
-        return uint32x8{ _mm256_srlv_epi32(input.data, shift_amount.data) };
-    }
-
-    uint64x4 shift_right(uint64x4 input, as_unsigned_type<uint64x4> shift_amount)
-    {
-        return uint64x4{ _mm256_srlv_epi64(input.data, shift_amount.data) };
-    }
-
-#if defined(_FOYE_SIMD_ENABLE_EMULATED_)
-    template<int shift_amount> requires(shift_amount >= 0 && shift_amount <= 7)
-    uint8x16 shift_left(uint8x16 input)
-    {
-        const __m128i zerobits = _mm_set1_epi16(0x00FF);
-        __m128i low16 = _mm_slli_epi16(_mm_cvtepu8_epi16(input.data), shift_amount);
-        __m128i high16 = _mm_slli_epi16(_mm_cvtepu8_epi16(_mm_srli_si128(input.data, 8)), shift_amount);
-
-        return uint8x16{ _mm_packus_epi16(
-            _mm_and_si128(low16, zerobits),
-            _mm_and_si128(high16, zerobits)) };
-    }
-#endif
-    template<int shift_amount> requires(shift_amount >= 0 && shift_amount <= 15)
-    uint16x8 shift_left(uint16x8 input) { return uint16x8{ _mm_slli_epi16(input.data, shift_amount) }; }
-
-    template<int shift_amount> requires(shift_amount >= 0 && shift_amount <= 31)
-    uint32x4 shift_left(uint32x4 input) { return uint32x4{ _mm_slli_epi32(input.data, shift_amount) }; }
-
-    template<int shift_amount> requires(shift_amount >= 0 && shift_amount <= 63)
-    uint64x2 shift_left(uint64x2 input) { return uint64x2{ _mm_slli_epi64(input.data, shift_amount) }; }
-
-#if defined(_FOYE_SIMD_ENABLE_EMULATED_)
-    template<int shift_amount> requires(shift_amount >= 0 && shift_amount <= 7)
-    uint8x32 shift_left(uint8x32 input)
-    {
-        const __m256i mask = _mm256_set1_epi16(0x00FF);
-
-        __m256i low16 = _mm256_slli_epi16(_mm256_cvtepu8_epi16(_mm256_castsi256_si128(input.data)), shift_amount);
-        __m256i high16 = _mm256_slli_epi16(_mm256_cvtepu8_epi16(_mm256_extracti128_si256(input.data, 1)), shift_amount);
-
-        return uint8x32{ _mm256_permute4x64_epi64(
-            _mm256_packus_epi16(
-                _mm256_and_si256(low16, mask),
-                _mm256_and_si256(high16, mask)),
-            0b11011000) };
-    }
-#endif
-    template<int shift_amount> requires(shift_amount >= 0 && shift_amount <= 15)
-    uint16x16 shift_left(uint16x16 input) { return uint16x16{ _mm256_slli_epi16(input.data, shift_amount) }; }
-
-    template<int shift_amount> requires(shift_amount >= 0 && shift_amount <= 31)
-    uint32x8 shift_left(uint32x8 input) { return uint32x8{ _mm256_slli_epi32(input.data, shift_amount) }; }
-
-    template<int shift_amount> requires(shift_amount >= 0 && shift_amount <= 63)
-    uint64x4 shift_left(uint64x4 input) { return uint64x4{ _mm256_slli_epi64(input.data, shift_amount) }; }
-
-#if defined(_FOYE_SIMD_ENABLE_EMULATED_)
-    template<int shift_amount> requires(shift_amount >= 0 && shift_amount <= 7)
-    sint8x16 shift_left(sint8x16 input)
-    {
-        const __m128i zerobits = _mm_set1_epi16(0x00FF);
-        __m128i low16 = _mm_slli_epi16(_mm_cvtepi8_epi16(input.data), shift_amount);
-        __m128i high16 = _mm_slli_epi16(_mm_cvtepi8_epi16(_mm_srli_si128(input.data, 8)), shift_amount);
-
-        return sint8x16{ _mm_packus_epi16(
-            _mm_and_si128(low16, zerobits),
-            _mm_and_si128(high16, zerobits)) };
-    }
-#endif
-    template<int shift_amount> requires(shift_amount >= 0 && shift_amount <= 15)
-    sint16x8 shift_left(sint16x8 input) { return sint16x8{ _mm_slli_epi16(input.data, shift_amount) }; }
-
-    template<int shift_amount> requires(shift_amount >= 0 && shift_amount <= 31)
-    sint32x4 shift_left(sint32x4 input) { return sint32x4{ _mm_slli_epi32(input.data, shift_amount) }; }
-
-    template<int shift_amount> requires(shift_amount >= 0 && shift_amount <= 63)
-    sint64x2 shift_left(sint64x2 input) { return sint64x2{ _mm_slli_epi64(input.data, shift_amount) }; }
-
-
-#if defined(_FOYE_SIMD_ENABLE_EMULATED_)
-    template<int shift_amount> requires(shift_amount >= 0 && shift_amount <= 7)
-    sint8x32 shift_left(sint8x32 input)
-    {
-        const __m256i mask = _mm256_set1_epi16(0x00FF);
-        __m256i low16 = _mm256_slli_epi16(_mm256_cvtepi8_epi16(_mm256_castsi256_si128(input.data)), shift_amount);
-        __m256i high16 = _mm256_slli_epi16(_mm256_cvtepi8_epi16(_mm256_extracti128_si256(input.data, 1)), shift_amount);
-
-        return sint8x32{ _mm256_permute4x64_epi64(
-            _mm256_packus_epi16(
-                _mm256_and_si256(low16, mask),
-                _mm256_and_si256(high16, mask)),
-            0b11011000) };
-    }
-#endif
-    template<int shift_amount> requires(shift_amount >= 0 && shift_amount <= 15)
-    sint16x16 shift_left(sint16x16 input) { return sint16x16{ _mm256_slli_epi16(input.data, shift_amount) }; }
-
-    template<int shift_amount> requires(shift_amount >= 0 && shift_amount <= 31)
-    sint32x8 shift_left(sint32x8 input) { return sint32x8{ _mm256_slli_epi32(input.data, shift_amount) }; }
-
-    template<int shift_amount> requires(shift_amount >= 0 && shift_amount <= 63)
-    sint64x4 shift_left(sint64x4 input) { return sint64x4{ _mm256_slli_epi64(input.data, shift_amount) }; }
-
-
-#if defined(_FOYE_SIMD_ENABLE_EMULATED_)
-    template<int shift_amount> requires(shift_amount >= 0 && shift_amount <= 7)
-    uint8x16 shift_right(uint8x16 input)
-    {
-        const __m128i zerobits = _mm_set1_epi16(0x00FF);
-        __m128i low16 = _mm_srli_epi16(_mm_cvtepu8_epi16(input.data), shift_amount);
-        __m128i high16 = _mm_srli_epi16(_mm_cvtepu8_epi16(_mm_srli_si128(input.data, 8)), shift_amount);
-
-        return uint8x16{ _mm_packus_epi16(
-            _mm_and_si128(low16, zerobits),
-            _mm_and_si128(high16, zerobits)) };
-    }
-#endif
-    template<int shift_amount> requires(shift_amount >= 0 && shift_amount <= 15)
-    uint16x8 shift_right(uint16x8 input) { return uint16x8{ _mm_srli_epi16(input.data, shift_amount) }; }
-
-    template<int shift_amount> requires(shift_amount >= 0 && shift_amount <= 31)
-    uint32x4 shift_right(uint32x4 input) { return uint32x4{ _mm_srli_epi32(input.data, shift_amount) }; }
-
-    template<int shift_amount> requires(shift_amount >= 0 && shift_amount <= 63)
-    uint64x2 shift_right(uint64x2 input) { return uint64x2{ _mm_srli_epi64(input.data, shift_amount) }; }
-
-#if defined(_FOYE_SIMD_ENABLE_EMULATED_)
-    template<int shift_amount> requires(shift_amount >= 0 && shift_amount <= 7)
-    uint8x32 shift_right(uint8x32 input)
-    {
-        const __m256i mask = _mm256_set1_epi16(0x00FF);
-
-        __m256i low16 = _mm256_srli_epi16(_mm256_cvtepu8_epi16(_mm256_castsi256_si128(input.data)), shift_amount);
-        __m256i high16 = _mm256_srli_epi16(_mm256_cvtepu8_epi16(_mm256_extracti128_si256(input.data, 1)), shift_amount);
-
-        return uint8x32{ _mm256_permute4x64_epi64(
-            _mm256_packus_epi16(
-                _mm256_and_si256(low16, mask),
-                _mm256_and_si256(high16, mask)),
-            0b11011000) };
-    }
-#endif
-    template<int shift_amount> requires(shift_amount >= 0 && shift_amount <= 15)
-    uint16x16 shift_right(uint16x16 input) { return uint16x16{ _mm256_srli_epi16(input.data, shift_amount) }; }
-
-    template<int shift_amount> requires(shift_amount >= 0 && shift_amount <= 31)
-    uint32x8 shift_right(uint32x8 input) { return uint32x8{ _mm256_srli_epi32(input.data, shift_amount) }; }
-
-    template<int shift_amount> requires(shift_amount >= 0 && shift_amount <= 63)
-    uint64x4 shift_right(uint64x4 input) { return uint64x4{ _mm256_srli_epi64(input.data, shift_amount) }; }
-
-
-#if defined(_FOYE_SIMD_ENABLE_EMULATED_)
-    template<int shift_amount> requires(shift_amount >= 0 && shift_amount <= 7)
-    sint8x16 shift_right(sint8x16 input)
-    {
-        const __m128i zerobits = _mm_set1_epi16(0x00FF);
-        __m128i low16 = _mm_srai_epi16(_mm_cvtepi8_epi16(input.data), shift_amount);
-        __m128i high16 = _mm_srai_epi16(_mm_cvtepi8_epi16(_mm_srli_si128(input.data, 8)), shift_amount);
-
-        return sint8x16{ _mm_packus_epi16(
-            _mm_and_si128(low16, zerobits),
-            _mm_and_si128(high16, zerobits)) };
-    }
-#endif
-    template<int shift_amount> requires(shift_amount >= 0 && shift_amount <= 15)
-    sint16x8 shift_right(sint16x8 input) { return sint16x8{ _mm_srai_epi16(input.data, shift_amount) }; }
-
-    template<int shift_amount> requires(shift_amount >= 0 && shift_amount <= 31)
-    sint32x4 shift_right(sint32x4 input) { return sint32x4{ _mm_srai_epi32(input.data, shift_amount) }; }
-
-    template<int shift_amount> requires(shift_amount >= 0 && shift_amount <= 63)
-    sint64x2 shift_right(sint64x2 input) { return sint64x2{ _mm_srai_epi64(input.data, shift_amount) }; }
-
-#if defined(_FOYE_SIMD_ENABLE_EMULATED_)
-    template<int shift_amount> requires(shift_amount >= 0 && shift_amount <= 7)
-     sint8x32 shift_right(sint8x32 input)
-    {
-        const __m256i mask = _mm256_set1_epi16(0x00FF);
-
-        __m256i low16 = _mm256_srai_epi16(_mm256_cvtepi8_epi16(_mm256_castsi256_si128(input.data)), shift_amount);
-        __m256i high16 = _mm256_srai_epi16(_mm256_cvtepi8_epi16(_mm256_extracti128_si256(input.data, 1)), shift_amount);
-
-        return sint8x32{ _mm256_permute4x64_epi64(
-            _mm256_packus_epi16(
-                _mm256_and_si256(low16, mask),
-                _mm256_and_si256(high16, mask)),
-            0b11011000) };
-    }
-#endif
-    template<int shift_amount> requires(shift_amount >= 0 && shift_amount <= 15)
-    sint16x16 shift_right(sint16x16 input) { return sint16x16{ _mm256_srai_epi16(input.data, shift_amount) }; }
-
-    template<int shift_amount> requires(shift_amount >= 0 && shift_amount <= 31)
-    sint32x8 shift_right(sint32x8 input) { return sint32x8{ _mm256_srai_epi32(input.data, shift_amount) }; }
-
-    template<int shift_amount> requires(shift_amount >= 0 && shift_amount <= 63)
-    sint64x4 shift_right(sint64x4 input) { return sint64x4{ _mm256_srai_epi64(input.data, shift_amount) }; }
-
-
-#if defined(_FOYE_SIMD_ENABLE_EMULATED_)
-    uint16x8 shift_left(uint16x8 input, as_unsigned_type<uint16x8> shift_amount)
-    {
-        __m256i temp32 = _mm256_cvtepu16_epi32(input.data);
-        __m256i temp_shift_amount32 = _mm256_cvtepu16_epi32(shift_amount.data);
-        __m256i res = _mm256_sllv_epi32(temp32, temp_shift_amount32);
-
-        __m256i shifted = _mm256_srli_epi32(res, 16);
-        __m256i masked = _mm256_and_si256(res, _mm256_set1_epi32(0xFFFF));
-        __m128i low_mask = _mm256_extractf128_si256(masked, 0);
-        __m128i high_mask = _mm256_extractf128_si256(masked, 1);
-        return uint16x8{ _mm_packus_epi32(low_mask, high_mask) };
-    }
-
-    uint8x16 shift_left(uint8x16 input, as_unsigned_type<uint8x16> shift_amount)
-    {
-        uint16x8 res_low = fyx::simd::shift_left(
-            fyx::simd::expand_low<uint16x8>(input),
-            fyx::simd::expand_low<as_unsigned_type<uint16x8>>(shift_amount)
-        );
-
-        uint16x8 res_high = fyx::simd::shift_left(
-            fyx::simd::expand_high<uint16x8>(input),
-            fyx::simd::expand_high<as_unsigned_type<uint16x8>>(shift_amount)
-        );
-
-        uint16x16 res = fyx::simd::merge(res_low, res_high);
-        return fyx::simd::narrowing<uint8x16>(res);
-    }
-
-#endif
-    uint32x4 shift_left(uint32x4 input, as_unsigned_type<uint32x4> shift_amount)
-    {
-        return uint32x4{ _mm_sllv_epi32(input.data, shift_amount.data) };
-    }
-
-    uint64x2 shift_left(uint64x2 input, as_unsigned_type<uint64x2> shift_amount)
-    {
-        return uint64x2{ _mm_sllv_epi64(input.data, shift_amount.data) };
-    }
-
-#if defined(_FOYE_SIMD_ENABLE_EMULATED_)
-    uint16x16 shift_left(uint16x16 input, as_unsigned_type<uint16x16> shift_amount)
-    {
-        uint16x8 res_low = fyx::simd::shift_left(input.low_part(), shift_amount.low_part());
-        uint16x8 res_high = fyx::simd::shift_left(input.high_part(), shift_amount.high_part());
-        return fyx::simd::merge(res_low, res_high);
-    }
-
-    uint8x32 shift_left(uint8x32 input, as_unsigned_type<uint8x32> shift_amount)
-    {
-        uint16x16 res_low = fyx::simd::shift_left(
-            fyx::simd::expand_low<uint16x16>(input),
-            fyx::simd::expand_low<as_unsigned_type<uint16x16>>(shift_amount)
-        );
-
-        uint16x16 res_high = fyx::simd::shift_left(
-            fyx::simd::expand_high<uint16x16>(input),
-            fyx::simd::expand_high<as_unsigned_type<uint16x16>>(shift_amount)
-        );
-
-        uint8x16 res_low8 = fyx::simd::narrowing<uint8x16>(res_low);
-        uint8x16 res_high8 = fyx::simd::narrowing<uint8x16>(res_high);
-        return fyx::simd::merge(res_low8, res_high8);
-    }
-
-#endif
-    uint32x8 shift_left(uint32x8 input, as_unsigned_type<uint32x8> shift_amount)
-    {
-        return uint32x8{ _mm256_sllv_epi32(input.data, shift_amount.data) };
-    }
-
-    uint64x4 shift_left(uint64x4 input, as_unsigned_type<uint64x4> shift_amount)
-    {
-        return uint64x4{ _mm256_sllv_epi64(input.data, shift_amount.data) };
-    }
-
-
-#if defined(_FOYE_SIMD_ENABLE_EMULATED_)
-    sint8x16 shift_left(sint8x16 input, as_unsigned_type<sint8x16> shift_amount)
-    {
-        return fyx::simd::reinterpret<sint8x16>(
-            fyx::simd::shift_left(fyx::simd::reinterpret<uint8x16>(input), shift_amount)
-        );
-    }
-
-    sint16x8 shift_left(sint16x8 input, as_unsigned_type<sint16x8> shift_amount)
-    {
-        return fyx::simd::reinterpret<sint16x8>(
-            fyx::simd::shift_left(fyx::simd::reinterpret<uint16x8>(input), shift_amount)
-        );
-    }
-#endif
-    sint32x4 shift_left(sint32x4 input, as_unsigned_type<sint32x4> shift_amount)
-    {
-        return sint32x4{ _mm_sllv_epi32(input.data, shift_amount.data) };
-    }
-
-    sint64x2 shift_left(sint64x2 input, as_unsigned_type<sint64x2> shift_amount)
-    {
-        return sint64x2{ _mm_sllv_epi64(input.data, shift_amount.data) };
-    }
-
-#if defined(_FOYE_SIMD_ENABLE_EMULATED_)
-    sint8x32 shift_left(sint8x32 input, as_unsigned_type<sint8x32> shift_amount)
-    {
-        return fyx::simd::reinterpret<sint8x32>(
-            fyx::simd::shift_left(fyx::simd::reinterpret<uint8x32>(input), shift_amount)
-        );
-    }
-
-    sint16x16 shift_left(sint16x16 input, as_unsigned_type<sint16x16> shift_amount)
-    {
-        return fyx::simd::reinterpret<sint16x16>(
-            fyx::simd::shift_left(fyx::simd::reinterpret<uint16x16>(input), shift_amount)
-        );
-    }
-#endif
-    sint32x8 shift_left(sint32x8 input, as_unsigned_type<sint32x8> shift_amount)
-    {
-        return sint32x8{ _mm256_sllv_epi32(input.data, shift_amount.data) };
-    }
-
-    sint64x4 shift_left(sint64x4 input, as_unsigned_type<sint64x4> shift_amount)
-    {
-        return sint64x4{ _mm256_sllv_epi64(input.data, shift_amount.data) };
-    }
 }
 
-#if defined(_FOYE_SIMD_ENABLE_EMULATED_)
-namespace fyx::simd
-{
-    namespace detail
-    {
-        template<typename simd_type>
-        simd_type shift_right_sint32_soft_simulation(simd_type input, as_unsigned_type<simd_type> shift_amount)
-        {
-            as_unsigned_type<simd_type> logical_shift = shift_right(
-                reinterpret<as_unsigned_type<simd_type>>(input),
-                reinterpret<as_unsigned_type<simd_type>>(shift_amount));
-
-            simd_type sign_mask = shift_right<31>(input);
-
-            simd_type ones = load_brocast<simd_type>(-1);
-            simd_type shift_left_amount = minus(load_brocast<simd_type>(32), reinterpret<simd_type>(shift_amount));
-
-            shift_left_amount = min(
-                max(shift_left_amount, allzero_bits_as<simd_type>()), load_brocast<simd_type>(31));
-
-            as_unsigned_type<simd_type> sign_bits_extended = shift_left(
-                reinterpret<as_unsigned_type<simd_type>>(sign_mask),
-                reinterpret<as_unsigned_type<simd_type>>(shift_left_amount));
-
-            as_unsigned_type<simd_type> arithmetic_shift = bitwise_OR(logical_shift, sign_bits_extended);
-            return reinterpret<simd_type>(arithmetic_shift);
-        }
-
-        template<typename simd_type>
-        simd_type shift_right_sint64_soft_simulation(simd_type input, as_unsigned_type<simd_type> shift_amount)
-        {
-            as_unsigned_type<simd_type> logical_shift = shift_right(
-                reinterpret<as_unsigned_type<simd_type>>(input), shift_amount);
-
-            simd_type sign_mask = greater(allzero_bits_as<simd_type>(), input).as_basic_simd<simd_type>();
-            simd_type shift_left_amount = minus(load_brocast<simd_type>(64), reinterpret<simd_type>(shift_amount));
-
-            simd_type zero = allzero_bits_as<simd_type>();
-            simd_type sixty_three = load_brocast<simd_type>(63);
-
-            simd_type clamped_shift = max(zero, shift_left_amount);
-            clamped_shift = min(clamped_shift, sixty_three);
-
-            as_unsigned_type<simd_type> sign_bits_extended = shift_left(
-                reinterpret<as_unsigned_type<simd_type>>(sign_mask),
-                reinterpret<as_unsigned_type<simd_type>>(clamped_shift));
-
-            as_unsigned_type<simd_type> arithmetic_shift = bitwise_OR(logical_shift, sign_bits_extended);
-            return reinterpret<simd_type>(arithmetic_shift);
-        }
-    }
-    
-    sint16x8 shift_right(sint16x8 input, as_unsigned_type<sint16x8> shift_amount)
-    {
-        sint32x8 input32 = fyx::simd::expand<sint32x8>(input);
-        as_unsigned_type<sint32x8> shift_amount32 = fyx::simd::expand<as_unsigned_type<sint32x8>>(shift_amount);
-        sint32x8 res = fyx::simd::detail::shift_right_sint32_soft_simulation<sint32x8>(input32, shift_amount32);
-        return fyx::simd::narrowing<sint16x8>(res);
-    }
-
-    sint16x16 shift_right(sint16x16 input, as_unsigned_type<sint16x16> shift_amount)
-    {
-        sint32x8 low_res = fyx::simd::detail::shift_right_sint32_soft_simulation<sint32x8>(
-            fyx::simd::expand_low<sint32x8>(input),
-            fyx::simd::expand_low<as_unsigned_type<sint32x8>>(shift_amount));
-
-        sint32x8 high_res = fyx::simd::detail::shift_right_sint32_soft_simulation<sint32x8>(
-            fyx::simd::expand_high<sint32x8>(input),
-            fyx::simd::expand_high<as_unsigned_type<sint32x8>>(shift_amount));
-
-        return fyx::simd::merge(
-            fyx::simd::narrowing<sint16x8>(low_res),
-            fyx::simd::narrowing<sint16x8>(high_res));
-    }
-
-    sint8x16 shift_right(sint8x16 input, as_unsigned_type<sint8x16> shift_amount)
-    {
-        sint16x16 input16 = fyx::simd::expand<sint16x16>(input);
-        as_unsigned_type<sint16x16> shift_amount16 = fyx::simd::expand<as_unsigned_type<sint16x16>>(shift_amount);
-        sint16x16 res = fyx::simd::shift_right(input16, shift_amount16);
-        return fyx::simd::narrowing<sint8x16>(res);
-    }
-
-    sint8x32 shift_right(sint8x32 input, as_unsigned_type<sint8x32> shift_amount)
-    {
-        sint16x16 low_res = fyx::simd::shift_right(
-            fyx::simd::expand_low<sint16x16>(input),
-            fyx::simd::expand_low<as_unsigned_type<sint16x16>>(shift_amount));
-
-        sint16x16 high_res = fyx::simd::shift_right(
-            fyx::simd::expand_high<sint16x16>(input),
-            fyx::simd::expand_high<as_unsigned_type<sint16x16>>(shift_amount));
-
-        return fyx::simd::merge(
-            fyx::simd::narrowing<sint8x16>(low_res),
-            fyx::simd::narrowing<sint8x16>(high_res));
-    }
-
-    sint32x4 shift_right(sint32x4 input, as_unsigned_type<sint32x4> shift_amount)
-    {
-        return fyx::simd::detail::shift_right_sint32_soft_simulation<sint32x4>(
-            input, shift_amount);
-    }
-
-    sint32x8 shift_right(sint32x8 input, as_unsigned_type<sint32x8> shift_amount)
-    {
-        return fyx::simd::detail::shift_right_sint32_soft_simulation<sint32x8>(
-            input, shift_amount);
-    }
-
-    sint64x2 shift_right(sint64x2 input, as_unsigned_type<sint64x2> shift_amount)
-    {
-        return fyx::simd::detail::shift_right_sint64_soft_simulation<sint64x2>(
-            input, shift_amount);
-    }
-
-    sint64x4 shift_right(sint64x4 input, as_unsigned_type<sint64x4> shift_amount)
-    {
-        return fyx::simd::detail::shift_right_sint64_soft_simulation<sint64x4>(
-            input, shift_amount);
-    }
-}
-#endif
+//#if defined(_FOYE_SIMD_ENABLE_EMULATED_)
+//namespace fyx::simd
+//{
+//    namespace detail
+//    {
+//        template<typename simd_type>
+//        simd_type shift_right_sint32_soft_simulation(simd_type input, as_unsigned_type<simd_type> shift_amount)
+//        {
+//            as_unsigned_type<simd_type> logical_shift = shift_right(
+//                reinterpret<as_unsigned_type<simd_type>>(input),
+//                reinterpret<as_unsigned_type<simd_type>>(shift_amount));
+//
+//            simd_type sign_mask = shift_right<31>(input);
+//
+//            simd_type ones = load_brocast<simd_type>(-1);
+//            simd_type shift_left_amount = minus(load_brocast<simd_type>(32), reinterpret<simd_type>(shift_amount));
+//
+//            shift_left_amount = min(
+//                max(shift_left_amount, allzero_bits_as<simd_type>()), load_brocast<simd_type>(31));
+//
+//            as_unsigned_type<simd_type> sign_bits_extended = shift_left(
+//                reinterpret<as_unsigned_type<simd_type>>(sign_mask),
+//                reinterpret<as_unsigned_type<simd_type>>(shift_left_amount));
+//
+//            as_unsigned_type<simd_type> arithmetic_shift = bitwise_OR(logical_shift, sign_bits_extended);
+//            return reinterpret<simd_type>(arithmetic_shift);
+//        }
+//
+//        template<typename simd_type>
+//        simd_type shift_right_sint64_soft_simulation(simd_type input, as_unsigned_type<simd_type> shift_amount)
+//        {
+//            as_unsigned_type<simd_type> logical_shift = shift_right(
+//                reinterpret<as_unsigned_type<simd_type>>(input), shift_amount);
+//
+//            simd_type sign_mask = greater(allzero_bits_as<simd_type>(), input).as_basic_simd<simd_type>();
+//            simd_type shift_left_amount = minus(load_brocast<simd_type>(64), reinterpret<simd_type>(shift_amount));
+//
+//            simd_type zero = allzero_bits_as<simd_type>();
+//            simd_type sixty_three = load_brocast<simd_type>(63);
+//
+//            simd_type clamped_shift = max(zero, shift_left_amount);
+//            clamped_shift = min(clamped_shift, sixty_three);
+//
+//            as_unsigned_type<simd_type> sign_bits_extended = shift_left(
+//                reinterpret<as_unsigned_type<simd_type>>(sign_mask),
+//                reinterpret<as_unsigned_type<simd_type>>(clamped_shift));
+//
+//            as_unsigned_type<simd_type> arithmetic_shift = bitwise_OR(logical_shift, sign_bits_extended);
+//            return reinterpret<simd_type>(arithmetic_shift);
+//        }
+//    }
+//    
+//    sint16x8 shift_right(sint16x8 input, as_unsigned_type<sint16x8> shift_amount)
+//    {
+//        sint32x8 input32 = fyx::simd::expand<sint32x8>(input);
+//        as_unsigned_type<sint32x8> shift_amount32 = fyx::simd::expand<as_unsigned_type<sint32x8>>(shift_amount);
+//        sint32x8 res = fyx::simd::detail::shift_right_sint32_soft_simulation<sint32x8>(input32, shift_amount32);
+//        return fyx::simd::narrowing<sint16x8>(res);
+//    }
+//
+//    sint16x16 shift_right(sint16x16 input, as_unsigned_type<sint16x16> shift_amount)
+//    {
+//        sint32x8 low_res = fyx::simd::detail::shift_right_sint32_soft_simulation<sint32x8>(
+//            fyx::simd::expand_low<sint32x8>(input),
+//            fyx::simd::expand_low<as_unsigned_type<sint32x8>>(shift_amount));
+//
+//        sint32x8 high_res = fyx::simd::detail::shift_right_sint32_soft_simulation<sint32x8>(
+//            fyx::simd::expand_high<sint32x8>(input),
+//            fyx::simd::expand_high<as_unsigned_type<sint32x8>>(shift_amount));
+//
+//        return fyx::simd::merge(
+//            fyx::simd::narrowing<sint16x8>(low_res),
+//            fyx::simd::narrowing<sint16x8>(high_res));
+//    }
+//
+//    sint8x16 shift_right(sint8x16 input, as_unsigned_type<sint8x16> shift_amount)
+//    {
+//        sint16x16 input16 = fyx::simd::expand<sint16x16>(input);
+//        as_unsigned_type<sint16x16> shift_amount16 = fyx::simd::expand<as_unsigned_type<sint16x16>>(shift_amount);
+//        sint16x16 res = fyx::simd::shift_right(input16, shift_amount16);
+//        return fyx::simd::narrowing<sint8x16>(res);
+//    }
+//
+//    sint8x32 shift_right(sint8x32 input, as_unsigned_type<sint8x32> shift_amount)
+//    {
+//        sint16x16 low_res = fyx::simd::shift_right(
+//            fyx::simd::expand_low<sint16x16>(input),
+//            fyx::simd::expand_low<as_unsigned_type<sint16x16>>(shift_amount));
+//
+//        sint16x16 high_res = fyx::simd::shift_right(
+//            fyx::simd::expand_high<sint16x16>(input),
+//            fyx::simd::expand_high<as_unsigned_type<sint16x16>>(shift_amount));
+//
+//        return fyx::simd::merge(
+//            fyx::simd::narrowing<sint8x16>(low_res),
+//            fyx::simd::narrowing<sint8x16>(high_res));
+//    }
+//
+//    sint32x4 shift_right(sint32x4 input, as_unsigned_type<sint32x4> shift_amount)
+//    {
+//        return fyx::simd::detail::shift_right_sint32_soft_simulation<sint32x4>(
+//            input, shift_amount);
+//    }
+//
+//    sint32x8 shift_right(sint32x8 input, as_unsigned_type<sint32x8> shift_amount)
+//    {
+//        return fyx::simd::detail::shift_right_sint32_soft_simulation<sint32x8>(
+//            input, shift_amount);
+//    }
+//
+//    sint64x2 shift_right(sint64x2 input, as_unsigned_type<sint64x2> shift_amount)
+//    {
+//        return fyx::simd::detail::shift_right_sint64_soft_simulation<sint64x2>(
+//            input, shift_amount);
+//    }
+//
+//    sint64x4 shift_right(sint64x4 input, as_unsigned_type<sint64x4> shift_amount)
+//    {
+//        return fyx::simd::detail::shift_right_sint64_soft_simulation<sint64x4>(
+//            input, shift_amount);
+//    }
+//}
+//#endif
 
 namespace fyx::simd
 {
