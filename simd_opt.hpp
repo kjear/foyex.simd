@@ -1,4 +1,4 @@
-﻿#ifndef _FOYE_SIMD_OPT_HPP_
+#ifndef _FOYE_SIMD_OPT_HPP_
 #define _FOYE_SIMD_OPT_HPP_
 #pragma once
 
@@ -388,7 +388,6 @@ namespace fyx::simd
     uint64x2 multiplies(uint64x2 lhs, uint64x2 rhs) { return fyx::simd::detail::multiplies_fallback64bits<uint64x2>(lhs, rhs); }
 #endif
     
-
     uint8x16 remainder(uint8x16 lhs, uint8x16 rhs) { return uint8x16{ _mm_rem_epu8(lhs.data, rhs.data) }; }
     uint16x8 remainder(uint16x8 lhs, uint16x8 rhs) { return uint16x8{ _mm_rem_epu16(lhs.data, rhs.data) }; }
     uint32x4 remainder(uint32x4 lhs, uint32x4 rhs) { return uint32x4{ _mm_rem_epu32(lhs.data, rhs.data) }; }
@@ -594,6 +593,30 @@ input_simd_type cmpfunc(input_simd_type lhs, input_simd_type rhs)\
     uint8x32 avg(uint8x32 arg0, uint8x32 arg1) { return uint8x32{ _mm256_avg_epu8(arg0.data, arg1.data) }; }
     uint16x16 avg(uint16x16 arg0, uint16x16 arg1) { return uint16x16{ _mm256_avg_epu16(arg0.data, arg1.data) }; }
 #if defined(_FOYE_SIMD_ENABLE_EMULATED_)
+    float32x8 avg(float32x8 arg0, float32x8 arg1)
+    {
+        return float32x8{ _mm256_fmadd_ps(_mm256_add_ps(arg0.data, arg1.data),
+            _mm256_set1_ps(0.5f), _mm256_setzero_ps()) };
+    }
+
+    float32x4 avg(float32x4 arg0, float32x4 arg1)
+    {
+        return float32x4{ _mm_fmadd_ps(_mm_add_ps(arg0.data, arg1.data),
+            _mm_set1_ps(0.5f), _mm_setzero_ps()) };
+    }
+
+    float64x4 avg(float64x4 arg0, float64x4 arg1)
+    {
+        return float64x4{ _mm256_fmadd_pd(_mm256_add_pd(arg0.data, arg1.data),
+            _mm256_set1_pd(0.5), _mm256_setzero_pd()) };
+    }
+
+    float64x2 avg(float64x2 arg0, float64x2 arg1)
+    {
+        return float64x2{ _mm_fmadd_pd(_mm_add_pd(arg0.data, arg1.data),
+            _mm_set1_pd(0.5), _mm_setzero_pd()) };
+    }
+
     namespace detail
     {
         template<typename simd_type>
@@ -619,29 +642,6 @@ input_simd_type cmpfunc(input_simd_type lhs, input_simd_type rhs)\
     sint32x8 avg(sint32x8 arg0, sint32x8 arg1) { return fyx::simd::detail::avg_fallback<sint32x8>(arg0, arg1); }
     sint64x4 avg(sint64x4 arg0, sint64x4 arg1) { return fyx::simd::detail::avg_fallback<sint64x4>(arg0, arg1); }
 
-    float32x8 avg(float32x8 arg0, float32x8 arg1)
-    {
-        return float32x8{ _mm256_fmadd_ps(_mm256_add_ps(arg0.data, arg1.data),
-            _mm256_set1_ps(0.5f), _mm256_setzero_ps()) };
-    }
-
-    float32x4 avg(float32x4 arg0, float32x4 arg1)
-    {
-        return float32x4{ _mm_fmadd_ps(_mm_add_ps(arg0.data, arg1.data),
-            _mm_set1_ps(0.5f), _mm_setzero_ps()) };
-    }
-
-    float64x4 avg(float64x4 arg0, float64x4 arg1)
-    {
-        return float64x4{ _mm256_fmadd_pd(_mm256_add_pd(arg0.data, arg1.data),
-            _mm256_set1_pd(0.5), _mm256_setzero_pd()) };
-    }
-
-    float64x2 avg(float64x2 arg0, float64x2 arg1)
-    {
-        return float64x2{ _mm_fmadd_pd(_mm_add_pd(arg0.data, arg1.data),
-            _mm_set1_pd(0.5), _mm_setzero_pd()) };
-    }
 #if defined(_FOYE_SIMD_HAS_FP16_)
     float16x8 avg(float16x8 arg0, float16x8 arg1)
     {
@@ -700,11 +700,8 @@ input_simd_type cmpfunc(input_simd_type lhs, input_simd_type rhs)\
             cvt8lane_fp32_to_bf16(res_high)) };
     }
 #endif
-
-
 #endif
 }
-
 
 #undef DEF_NOTSUPPORTED_IMPLEMENT
 #undef DEF_NOSUITABLE_IMPLEMENT
