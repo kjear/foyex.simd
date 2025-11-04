@@ -282,8 +282,7 @@ namespace fyx::simd
     template<typename mask_type> requires(fyx::simd::is_basic_mask_v<mask_type>)
     mask_type where_both(mask_type mask_0, mask_type mask_1)
     {
-        constexpr std::size_t single_width_bits = mask_type::single_width_bits;
-        using uscalar_type = fyx::simd::detail::integral_t<single_width_bits, false>;
+        using uscalar_type = fyx::simd::detail::integral_t<mask_type::single_width_bits, false>;
         using usimd_type = basic_simd<uscalar_type, mask_type::bit_width>;
         return mask_type{ fyx::simd::bitwise_AND(usimd_type{ mask_0.data }, usimd_type{ mask_1.data }) };
     }
@@ -291,8 +290,7 @@ namespace fyx::simd
     template<typename mask_type> requires(fyx::simd::is_basic_mask_v<mask_type>)
     mask_type where_any(mask_type mask_0, mask_type mask_1)
     {
-        constexpr std::size_t single_width_bits = mask_type::single_width_bits;
-        using uscalar_type = fyx::simd::detail::integral_t<single_width_bits, false>;
+        using uscalar_type = fyx::simd::detail::integral_t<mask_type::single_width_bits, false>;
         using usimd_type = basic_simd<uscalar_type, mask_type::bit_width>;
         return mask_type{ fyx::simd::bitwise_OR(usimd_type{ mask_0.data }, usimd_type{ mask_1.data }) };
     }
@@ -300,8 +298,7 @@ namespace fyx::simd
     template<typename mask_type> requires(fyx::simd::is_basic_mask_v<mask_type>)
     mask_type where_either(mask_type mask_0, mask_type mask_1)
     {
-        constexpr std::size_t single_width_bits = mask_type::single_width_bits;
-        using uscalar_type = fyx::simd::detail::integral_t<single_width_bits, false>;
+        using uscalar_type = fyx::simd::detail::integral_t<mask_type::single_width_bits, false>;
         using usimd_type = basic_simd<uscalar_type, mask_type::bit_width>;
         return mask_type{ fyx::simd::bitwise_XOR(usimd_type{ mask_0.data }, usimd_type{ mask_1.data }) };
     }
@@ -309,8 +306,7 @@ namespace fyx::simd
     template<typename mask_type> requires(fyx::simd::is_basic_mask_v<mask_type>)
     mask_type where_invert(mask_type target_mask, mask_type condition_mask)
     {
-        constexpr std::size_t single_width_bits = mask_type::single_width_bits;
-        using uscalar_type = fyx::simd::detail::integral_t<single_width_bits, false>;
+        using uscalar_type = fyx::simd::detail::integral_t<mask_type::single_width_bits, false>;
         using usimd_type = basic_simd<uscalar_type, mask_type::bit_width>;
         return mask_type{ fyx::simd::bitwise_XOR(usimd_type{ target_mask.data }, usimd_type{ condition_mask.data }) };
     }
