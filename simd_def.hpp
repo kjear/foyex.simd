@@ -6,8 +6,150 @@
 
 namespace fyx::simd
 {
+    bool is_AVX512F_available()
+    {
+        std::int32_t reg[4];
+        __cpuidex(reg, 7, 0);
+        return (reg[1] & (1 << 16)) != 0;
+    }
+
+    bool is_AVX2_available()
+    {
+        std::int32_t reg[4];
+        __cpuidex(reg, 7, 0);
+        return (reg[1] & (1 << 5)) != 0;
+    }
+
+    bool is_FMA_available()
+    {
+        std::int32_t reg[4];
+        __cpuidex(reg, 1, 0);
+        return (reg[2] & (1 << 12)) != 0;
+    }
+
+    bool is_SSE2_available()
+    {
+        std::int32_t reg[4];
+        __cpuidex(reg, 1, 0);
+        return (reg[3] & (1 << 26)) != 0;
+    }
+
+    bool is_SSE3_available()
+    {
+        std::int32_t reg[4];
+        __cpuidex(reg, 1, 0);
+        return (reg[2] & (1 << 0)) != 0;
+    }
+
+    bool is_SSE4_1_available()
+    {
+        std::int32_t reg[4];
+        __cpuidex(reg, 1, 0);
+        return (reg[2] & (1 << 19)) != 0;
+    }
+
+    int is_AVX_available()
+    {
+        std::int32_t reg[4];
+        __cpuidex(reg, 1, 0);
+        return (reg[2] & (1 << 28)) != 0;
+    }
+
+    void flush_cache_line(const void* addr) { _mm_clflush(addr); }
+    void load_fence() { _mm_lfence(); }
+    void store_fence() { _mm_sfence(); }
+    void memory_fence() { _mm_mfence(); }
+
+    void zero_upper() { _mm256_zeroupper(); }
+    void zero_all() { _mm256_zeroall(); }
+
+    struct all_zero_guard { ~all_zero_guard() { _mm256_zeroall(); } };
+    struct upper_zero_guard { ~upper_zero_guard() { _mm256_zeroupper(); } };
+
+    template<typename T>
+    void nontemporal_hint(T* ptr)
+    {
+        _mm_prefetch(reinterpret_cast<const char*>(ptr), _MM_HINT_NTA);
+    }
+
+    enum class prefetch_strategy
+    {
+        prefetch_nta,
+        prefetch_t0,
+        prefetch_t1,
+        prefetch_t2
+    };
+
+    template<prefetch_strategy Strategy = prefetch_strategy::prefetch_t0>
+    void prefetch(const void* addr)
+    {
+        switch (Strategy)
+        {
+        case prefetch_strategy::prefetch_nta:
+            _mm_prefetch(static_cast<const char*>(addr), _MM_HINT_NTA);
+            break;
+        case prefetch_strategy::prefetch_t0:
+            _mm_prefetch(static_cast<const char*>(addr), _MM_HINT_T0);
+            break;
+        case prefetch_strategy::prefetch_t1:
+            _mm_prefetch(static_cast<const char*>(addr), _MM_HINT_T1);
+            break;
+        case prefetch_strategy::prefetch_t2:
+            _mm_prefetch(static_cast<const char*>(addr), _MM_HINT_T2);
+            break;
+        }
+    }
+
+    namespace internel
+    {
+        struct CPUInfo 
+        {
+            char brand_string[48];
+            char newline;
+            char null_term;
+            char called_flag;
+        };
+
+        static CPUInfo cpu_info = { 0 };
+    }
+
+    const char* cpuid_string()
+    {
+        if (internel::cpu_info.called_flag == 1) 
+        {
+            return internel::cpu_info.brand_string;
+        }
+
+        union
+        {
+            std::int32_t info[4];
+            std::uint8_t str[16];
+        } u;
+        int i, j;
+
+        for (i = 0; i < 3; i++)
+        {
+            __cpuidex(u.info, i + 0x80000002, 0);
+
+            for (j = 0; j < 16; j++)
+            {
+                internel::cpu_info.brand_string[i * 16 + j] = u.str[j];
+            }
+        }
+
+        internel::cpu_info.newline = '\n';
+        internel::cpu_info.null_term = '\0';
+        internel::cpu_info.called_flag = 1;
+
+        return std::as_const(internel::cpu_info.brand_string);
+    }
+
+
     template<std::size_t count_element, std::size_t bits_width>
     struct alignas(bits_width / CHAR_BIT) basic_mask;
+
+    template<typename T, std::size_t bits_width>
+    struct alignas(bits_width / CHAR_BIT) basic_simd;
 
 
     template<typename T, std::size_t bits_width>
@@ -193,30 +335,6 @@ namespace fyx::simd
     constexpr bool is_half_basic_simd_v = false;
 #endif
 
-#define _FOYE_SIMD_ASSERT_BASIC_SIMD_SPECIALIZATION_(type_for_check) \
-static_assert(is_basic_simd_v<type_for_check>, \
-   "simd_type must be a fyx::simd::basic_simd specialization")
-
-#define _FOYE_SIMD_ASSERT_INTEGRAL_BASIC_SIMD_SPECIALIZATION_(type_for_check) \
-static_assert(is_integral_basic_simd_v<type_for_check>, \
-   "simd_type must be a fyx::simd::basic_simd specialization with integral scalar type")
-
-#define _FOYE_SIMD_ASSERT_UNSIGNED_INTEGRAL_BASIC_SIMD_SPECIALIZATION_(type_for_check) \
-static_assert(is_unsigned_integral_basic_simd_v<type_for_check>, \
-   "simd_type must be a fyx::simd::basic_simd specialization with unsigned integral scalar type")
-
-#define _FOYE_SIMD_ASSERT_SIGNED_INTEGRAL_BASIC_SIMD_SPECIALIZATION_(type_for_check) \
-static_assert(is_signed_integral_basic_simd_v<type_for_check>, \
-   "simd_type must be a fyx::simd::basic_simd specialization with signed integral scalar type")
-
-#define _FOYE_SIMD_ASSERT_FLOATING_BASIC_SIMD_SPECIALIZATION_(type_for_check) \
-static_assert(is_floating_basic_simd_v<type_for_check>, \
-   "simd_type must be a fyx::simd::basic_simd specialization with floating-point scalar type")
-
-#define _FOYE_SIMD_ASSERT_HALF_BASIC_SIMD_SPECIALIZATION_(type_for_check) \
-static_assert(is_half_basic_simd_v<type_for_check>, \
-   "simd_type must be a fyx::simd::basic_simd specialization with half-precision floating-point scalar type")
-
     template<typename simd_type> requires(fyx::simd::is_integral_basic_simd_v<simd_type>)
     using as_unsigned_type = std::conditional_t<
         std::is_unsigned_v<typename simd_type::scalar_t>,
@@ -240,45 +358,37 @@ static_assert(is_half_basic_simd_v<type_for_check>, \
     template<typename simd_type> requires(fyx::simd::is_basic_simd_v<simd_type>)
     simd_type allzero_bits_as()
     {
-        _FOYE_SIMD_ASSERT_BASIC_SIMD_SPECIALIZATION_(simd_type);
         return simd_type{ fyx::simd::detail::zero_vec<typename simd_type::vector_t>() };
     }
 
     template<typename simd_type> requires(fyx::simd::is_basic_simd_v<simd_type>)
     simd_type allone_bits_as()
     {
-        _FOYE_SIMD_ASSERT_BASIC_SIMD_SPECIALIZATION_(simd_type);
         return simd_type{ fyx::simd::detail::one_vec<typename simd_type::vector_t>() };
     }
 
-    template<typename simd_type, typename brocast_scalar_type> requires(fyx::simd::is_basic_simd_v<simd_type>)
+    template<typename simd_type, typename brocast_scalar_type> 
+    requires(fyx::simd::is_basic_simd_v<simd_type> && std::is_convertible_v<typename simd_type::scalar_t, brocast_scalar_type>)
     simd_type load_brocast(brocast_scalar_type value)
     {
-        _FOYE_SIMD_ASSERT_BASIC_SIMD_SPECIALIZATION_(simd_type);
-        static_assert(std::is_convertible_v<typename simd_type::scalar_t, brocast_scalar_type>, 
-            "The scalar to be broadcasted and the specified vector element type must be convertible");
-
         return simd_type{ static_cast<typename simd_type::scalar_t>(value) };
     }
 
     template<typename simd_type> requires(fyx::simd::is_basic_simd_v<simd_type>)
     simd_type load_aligned(const typename simd_type::scalar_t* mem_addr)
     {
-        _FOYE_SIMD_ASSERT_BASIC_SIMD_SPECIALIZATION_(simd_type);
         return simd_type{ fyx::simd::detail::load_aligned<typename simd_type::vector_t>(mem_addr) };
     }
 
     template<typename simd_type> requires(fyx::simd::is_basic_simd_v<simd_type>)
     simd_type load_unaligned(const typename simd_type::scalar_t* mem_addr)
     {
-        _FOYE_SIMD_ASSERT_BASIC_SIMD_SPECIALIZATION_(simd_type);
         return simd_type{ fyx::simd::detail::load_unaligned<typename simd_type::vector_t>(mem_addr) };
     }
 
     template<typename simd_type> requires(fyx::simd::is_basic_simd_v<simd_type>)
     void store_aligned(simd_type to_store_vector, void* mem_addr)
     {
-        _FOYE_SIMD_ASSERT_BASIC_SIMD_SPECIALIZATION_(simd_type);
         fyx::simd::detail::store_aligned<typename simd_type::vector_t>(
             to_store_vector.data,
             reinterpret_cast<typename simd_type::scalar_t*>(mem_addr)
@@ -288,7 +398,6 @@ static_assert(is_half_basic_simd_v<type_for_check>, \
     template<typename simd_type> requires(fyx::simd::is_basic_simd_v<simd_type>)
     void store_unaligned(simd_type to_store_vector, void* mem_addr)
     {
-        _FOYE_SIMD_ASSERT_BASIC_SIMD_SPECIALIZATION_(simd_type);
         fyx::simd::detail::store_unaligned<typename simd_type::vector_t>(
             to_store_vector.data,
             reinterpret_cast<typename simd_type::scalar_t*>(mem_addr)
@@ -298,24 +407,20 @@ static_assert(is_half_basic_simd_v<type_for_check>, \
     template<typename simd_type> requires(fyx::simd::is_basic_simd_v<simd_type>)
     void store_stream(simd_type to_store_vector, void* mem_addr)
     {
-        _FOYE_SIMD_ASSERT_BASIC_SIMD_SPECIALIZATION_(simd_type);
         fyx::simd::detail::store_stream<typename simd_type::vector_t>(
             to_store_vector.data,
             reinterpret_cast<typename simd_type::scalar_t*>(mem_addr)
         );
     }
     
-    template<typename simd_type, typename ... Args> requires(fyx::simd::is_basic_simd_v<simd_type>)
+    template<typename simd_type, typename ... Args> 
+    requires(fyx::simd::is_basic_simd_v<simd_type> && sizeof...(Args) <= simd_type::lane_width
+        && (std::is_constructible_v<typename simd_type::scalar_t, Args> && ...))
     FOYE_SIMD_PERFORMANCE_MATTER simd_type load_by_each(Args&& ... args)
     {
         using input_scalar_t = typename simd_type::scalar_t;
         using input_vector_t = typename simd_type::vector_t;
         
-        static_assert((std::is_constructible_v<input_scalar_t, Args> && ...),
-            "All arguments must be convertible to simd_type::scalar_t");
-
-        static_assert(sizeof...(Args) <= simd_type::lane_width, "The number of scalars passed in cannot exceed the simd_type::lane_width");
-
         using setter_invoker = fyx::simd::detail::setter_by_each_invoker<input_vector_t, sizeof(input_scalar_t),
             simd_type::lane_width>;
 
@@ -371,23 +476,19 @@ static_assert(is_half_basic_simd_v<type_for_check>, \
         };
     }
 
-    template<typename target_simd, typename source_scalar, std::size_t bits_width> requires(fyx::simd::is_basic_simd_v<target_simd>)
+    template<typename target_simd, typename source_scalar, std::size_t bits_width> 
+    requires(fyx::simd::is_basic_simd_v<target_simd> && (target_simd::bit_width == bits_width))
     target_simd reinterpret(basic_simd<source_scalar, bits_width> source_vec)
     {
-        _FOYE_SIMD_ASSERT_BASIC_SIMD_SPECIALIZATION_(target_simd);
-        static_assert(target_simd::bit_width == bits_width,
-            "fyx::simd::reinterpret: source and target must have the same bit width");
-
         return target_simd{ fyx::simd::detail::basic_reinterpret<typename target_simd::vector_t,
             typename fyx::simd::basic_simd<source_scalar, bits_width>::vector_t>(source_vec.data) };
     }
 
-    template<typename mask_type, typename ... Args> requires(fyx::simd::is_basic_mask_v<mask_type>)
+    template<typename mask_type, typename ... Args> 
+    requires(fyx::simd::is_basic_mask_v<mask_type> && (std::is_constructible_v<Args, bool> && ...)
+        && (sizeof...(Args) <= mask_type::lane_width))
     FOYE_SIMD_PERFORMANCE_MATTER mask_type load_mask_by_each(Args&& ... args)
     {
-        static_assert((std::is_constructible_v<Args, bool> && ...), "All arguments must be convertible to bool");
-        static_assert(sizeof...(Args) <= mask_type::lane_width, "The number of scalars passed in cannot exceed the mask_type::lane_width");
-
         constexpr std::size_t single_width_bits = mask_type::bit_width / mask_type::lane_width;
         constexpr std::size_t single_width = single_width_bits / CHAR_BIT;
 
@@ -537,51 +638,6 @@ static_assert(is_half_basic_simd_v<type_for_check>, \
 
     template<typename simd_type>
     using mask_from_simd_t = basic_mask<simd_type::lane_width, simd_type::bit_width>;
-
-    void flush_cache_line(const void* addr) { _mm_clflush(addr); }
-    void load_fence() { _mm_lfence(); }
-    void store_fence() { _mm_sfence(); }
-    void memory_fence() { _mm_mfence(); }
-
-    void zero_upper() { _mm256_zeroupper(); }
-    void zero_all() { _mm256_zeroall(); }
-
-    struct all_zero_guard { ~all_zero_guard() { _mm256_zeroall(); } };
-    struct upper_zero_guard { ~upper_zero_guard() { _mm256_zeroupper(); } };
-    
-    template<typename T>
-    void nontemporal_hint(T* ptr)
-    {
-        _mm_prefetch(reinterpret_cast<const char*>(ptr), _MM_HINT_NTA);
-    }
-
-    enum class prefetch_strategy
-    {
-        prefetch_nta,
-        prefetch_t0,
-        prefetch_t1,
-        prefetch_t2
-    };
-
-    template<prefetch_strategy Strategy = prefetch_strategy::prefetch_t0>
-    void prefetch(const void* addr)
-    {
-        switch (Strategy)
-        {
-        case prefetch_strategy::prefetch_nta:
-            _mm_prefetch(static_cast<const char*>(addr), _MM_HINT_NTA);
-            break;
-        case prefetch_strategy::prefetch_t0:
-            _mm_prefetch(static_cast<const char*>(addr), _MM_HINT_T0);
-            break;
-        case prefetch_strategy::prefetch_t1:
-            _mm_prefetch(static_cast<const char*>(addr), _MM_HINT_T1);
-            break;
-        case prefetch_strategy::prefetch_t2:
-            _mm_prefetch(static_cast<const char*>(addr), _MM_HINT_T2);
-            break;
-        }
-    }
 }
 
 #endif
