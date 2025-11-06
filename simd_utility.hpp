@@ -15,6 +15,9 @@
 #include <cfenv>
 #include <array>
 
+//#define FOYE_SIMD_CONST __declspec(noalias)
+//#define FOYE_SIMD_INTRINSIC inline __forceinline
+
 #if __has_include("foye_float16.hpp")
 #include "foye_float16.hpp"
 #define _FOYE_SIMD_HAS_FP16_
@@ -162,7 +165,6 @@ inline __m128i cvt8lane_fp32_to_bf16___(__m256 input)
 #define _FOYE_SIMD_CMPEQ_PS_(lhs, rhs) (_mm256_cmp_ps(lhs, rhs, _CMP_EQ_OQ))
 #define _FOYE_SIMD_CMPORD_PS_(lhs, rhs) (_mm256_cmp_ps(lhs, rhs, _CMP_ORD_Q))
 #define _FOYE_SIMD_ABS_PS_(arg) (_mm256_andnot_ps(_mm256_set1_ps(-0.0f), arg))
-
 
 #if defined(_FOYE_SIMD_HAS_FP16_) || defined(_FOYE_SIMD_HAS_BF16_)
 #define _FOYE_SIMD_DISPATCH_8LANE_HALF_V_VV(lhs, rhs, func, to_half, from_half) (to_half(func(from_half(lhs), from_half(rhs))))
@@ -345,23 +347,14 @@ template<> struct setter_by_each_invoker<return_type, scalar_size, lane_width>\
     __m128i split_low(__m256i from) { return _mm256_castsi256_si128(from); }
     __m128 split_low(__m256 from) { return _mm256_castps256_ps128(from); }
     __m128d split_low(__m256d from) { return _mm256_castpd256_pd128(from); }
-#define FOYE_SIMD_EXTRACT_LOW_i(from) (_mm256_castsi256_si128(from))
-#define FOYE_SIMD_EXTRACT_LOW_f(from) (_mm256_castps256_ps128(from))
-#define FOYE_SIMD_EXTRACT_LOW_d(from) (_mm256_castpd256_pd128(from))
 
     __m128i split_high(__m256i from) { return _mm256_extracti128_si256(from, 1); }
     __m128 split_high(__m256 from) { return _mm256_extractf128_ps(from, 1); }
     __m128d split_high(__m256d from) { return _mm256_extractf128_pd(from, 1); }
-#define FOYE_SIMD_EXTRACT_HIGH_i(from) (_mm256_extracti128_si256(from, 1))
-#define FOYE_SIMD_EXTRACT_HIGH_f(from) (_mm256_extractf128_ps(from, 1))
-#define FOYE_SIMD_EXTRACT_HIGH_d(from) (_mm256_extractf128_pd(from, 1))
 
     __m256i merge(__m128i low, __m128i high) { return _mm256_inserti128_si256(_mm256_castsi128_si256(low), high, 0x1); }
     __m256 merge(__m128 low, __m128 high) { return _mm256_insertf128_ps(_mm256_castps128_ps256(low), high, 0x1); }
     __m256d merge(__m128d low, __m128d high) { return _mm256_insertf128_pd(_mm256_castpd128_pd256(low), high, 0x1); }
-#define FOYE_SIMD_MERGE_i(low, high) (_mm256_inserti128_si256(_mm256_castsi128_si256(low), high, 0x1))
-#define FOYE_SIMD_MERGE_f(low, high) (_mm256_insertf128_ps(_mm256_castps128_ps256(low), high, 0x1))
-#define FOYE_SIMD_MERGE_d(low, high) (_mm256_insertf128_pd(_mm256_castpd128_pd256(low), high, 0x1))
 
 
     template<typename vector_type> vector_type load_aligned(const void*);
@@ -426,7 +419,6 @@ template<> struct setter_by_each_invoker<return_type, scalar_size, lane_width>\
     template<> __m128d brocast<__m128d, double>(double scalar) { return _mm_set1_pd(scalar); }
     template<> __m256d brocast<__m256d, double>(double scalar) { return _mm256_set1_pd(scalar); }
 
-
 #ifdef _FOYE_SIMD_HAS_FP16_
     template<> __m128i brocast<__m128i, fy::float16>(fy::float16 scalar) { return _mm_set1_epi16(std::bit_cast<short>(scalar)); }
     template<> __m256i brocast<__m256i, fy::float16>(fy::float16 scalar) { return _mm256_set1_epi16(std::bit_cast<short>(scalar)); }
@@ -452,7 +444,6 @@ template<> struct setter_by_each_invoker<return_type, scalar_size, lane_width>\
 
     template<std::size_t index> std::uint32_t extract_x32(__m256 src) { return std::bit_cast<std::uint32_t>(_mm256_extract_epi32(_mm256_castps_si256(src), index)); }
     template<std::size_t index> std::uint64_t extract_x64(__m256d src) { return std::bit_cast<std::uint64_t>(_mm256_extract_epi64(_mm256_castpd_si256(src), index)); }
-
 
     template<typename dst, typename src> dst basic_reinterpret(src) { __assume(false); }
     template<> __m128 basic_reinterpret(__m128 v) { return v; }
@@ -481,8 +472,6 @@ template<> struct setter_by_each_invoker<return_type, scalar_size, lane_width>\
     template<> __m256 basic_reinterpret(__m256d v) { return _mm256_castpd_ps(v); }
     template<> __m256i basic_reinterpret(__m256d v) { return _mm256_castpd_si256(v); }
 }
-
-
 
 
 #endif
