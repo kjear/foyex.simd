@@ -323,97 +323,6 @@ namespace fyx::simd
     }
 
 
-    float32x8 copysign(float32x8 source, float32x8 sign)
-    {
-        const __m256 value_mask = _mm256_castsi256_ps(_mm256_set1_epi32(0x7FFFFFFF));
-        const __m256 sign_mask = _mm256_castsi256_ps(_mm256_set1_epi32(0x80000000));
-
-        __m256 magnitude = _mm256_and_ps(source.data, value_mask);
-        __m256 new_sign = _mm256_and_ps(sign.data, sign_mask);
-        __m256 result = _mm256_or_ps(magnitude, new_sign);
-        return float32x8{ result };
-    }
-
-    float64x4 copysign_pd(float64x4 source, float64x4 sign) 
-    {
-        const __m256d value_mask = _mm256_castsi256_pd(_mm256_set1_epi64x(0x7FFFFFFFFFFFFFFF));
-        const __m256d sign_mask = _mm256_castsi256_pd(_mm256_set1_epi64x(0x8000000000000000));
-
-        __m256d magnitude = _mm256_and_pd(source, value_mask);
-        __m256d new_sign = _mm256_and_pd(sign, sign_mask);
-        __m256d result = _mm256_or_pd(magnitude, new_sign);
-        return float64x4{ result };
-    }
-
-    float32x4 copysign(float32x4 source, float32x4 sign)
-    {
-        const __m128 value_mask = _mm_castsi128_ps(_mm_set1_epi32(0x7FFFFFFF));
-        const __m128 sign_mask = _mm_castsi128_ps(_mm_set1_epi32(0x80000000));
-
-        __m128 magnitude = _mm_and_ps(source.data, value_mask);
-        __m128 new_sign = _mm_and_ps(sign.data, sign_mask);
-        __m128 result = _mm_or_ps(magnitude, new_sign);
-        return float32x4{ result };
-    }
-
-    float64x2 copysign(float64x2 source, float64x2 sign)
-    {
-        const __m128d value_mask = _mm_castsi128_pd(_mm_set1_epi64x(0x7FFFFFFFFFFFFFFF));
-        const __m128d sign_mask = _mm_castsi128_pd(_mm_set1_epi64x(0x8000000000000000));
-
-        __m128d magnitude = _mm_and_pd(source, value_mask);
-        __m128d new_sign = _mm_and_pd(sign, sign_mask);
-        __m128d result = _mm_or_pd(magnitude, new_sign);
-        return float64x2{ result };
-    }
-
-#if defined(_FOYE_SIMD_HAS_FP16_)
-    float16x8 copysign(float16x8 source, float16x8 sign)
-    {
-        const __m128i value_mask = _mm_set1_epi16(0x7FFF);
-        const __m128i sign_mask = _mm_set1_epi16(0x8000);
-
-        return float16x8{ _mm_or_si128(
-            _mm_and_si128(source.data, value_mask),
-            _mm_and_si128(sign.data, sign_mask)
-        ) };
-    }
-
-    float16x16 copysign(float16x16 source, float16x16 sign)
-    {
-        const __m256i value_mask = _mm256_set1_epi16(0x7FFF);
-        const __m256i sign_mask = _mm256_set1_epi16(0x8000);
-
-        return float16x16{ _mm256_or_si256(
-            _mm256_and_si256(source, value_mask),
-            _mm256_and_si256(sign, sign_mask)
-        ) };
-    }
-#endif
-#if defined(_FOYE_SIMD_HAS_BF16_)
-    bfloat16x8 copysign(bfloat16x8 source, bfloat16x8 sign)
-    {
-        const __m128i value_mask = _mm_set1_epi16(0x7FFF);
-        const __m128i sign_mask = _mm_set1_epi16(0x8000);
-
-        return bfloat16x8{ _mm_or_si128(
-            _mm_and_si128(source.data, value_mask),
-            _mm_and_si128(sign.data, sign_mask)
-        ) };
-    }
-
-    bfloat16x16 copysign(bfloat16x16 source, bfloat16x16 sign)
-    {
-        const __m256i value_mask = _mm256_set1_epi16(0x7FFF);
-        const __m256i sign_mask = _mm256_set1_epi16(0x8000);
-
-        return bfloat16x16{ _mm256_or_si256(
-            _mm256_and_si256(source, value_mask),
-            _mm256_and_si256(sign, sign_mask)
-        ) };
-    }
-#endif
-
     namespace detail
     {
         template<typename simd_type>
@@ -1598,9 +1507,7 @@ namespace fyx::simd
                 simd_type guess_squared = multiplies(guess, guess);
 
                 mask_from_simd_t<simd_type> guess_sq_zero = equal(guess_squared, zero);
-
-                int testc_res = bitwise_test_check(guess_sq_zero.as_basic_simd<simd_type>(), neone);
-                if (testc_res)
+                if (bitwise_test_check(guess_sq_zero.as_basic_simd<simd_type>(), neone))
                 {
                     break;
                 }
@@ -1616,8 +1523,7 @@ namespace fyx::simd
                 simd_type threshold = multiplies(eps, abs_next_guess);
 
                 mask_from_simd_t<simd_type> converged = less(abs_diff, threshold);
-                int testc2_res = bitwise_test_check(converged.as_basic_simd<simd_type>(), neone);
-                if (testc2_res)
+                if (bitwise_test_check(converged.as_basic_simd<simd_type>(), neone))
                 {
                     break;
                 }
@@ -1796,19 +1702,9 @@ namespace fyx::simd
                 abs_n = reinterpret<sint_simd_t>(shift_right<1>(
                     reinterpret<as_unsigned_type<sint_simd_t>>(abs_n)));
 
-                if constexpr (fyx::simd::is_256bits_simd_v<simd_type>)
+                if (bitwise_test_zero(abs_n, neone))
                 {
-                    if (_mm256_testz_si256(abs_n, neone))
-                    {
-                        break;
-                    }
-                }
-                else
-                {
-                    if (_mm_testz_si128(abs_n, neone))
-                    {
-                        break;
-                    }
+                    break;
                 }
             }
 
