@@ -3,6 +3,7 @@
 #pragma once
 
 #include "simd_def.hpp"
+#include "simd_cvt.hpp"
 
 namespace fyx::simd::detail
 {
@@ -1923,8 +1924,8 @@ namespace fyx::simd
         );
 
         return uint8x16{ _mm_unpacklo_epi64(
-            _mm_shuffle_epi8(FOYE_SIMD_EXTRACT_LOW_i(vsrc), even_mask),
-            _mm_shuffle_epi8(FOYE_SIMD_EXTRACT_HIGH_i(vsrc), even_mask)) };
+            _mm_shuffle_epi8(detail::split_low(vsrc), even_mask),
+            _mm_shuffle_epi8(detail::split_high(vsrc), even_mask)) };
     }
 
     uint16x8 interleave_even(uint16x16 input)
@@ -1936,16 +1937,16 @@ namespace fyx::simd
         );
 
         return uint16x8{ _mm_unpacklo_epi64(
-            _mm_shuffle_epi8(FOYE_SIMD_EXTRACT_LOW_i(vsrc), even_mask),
-            _mm_shuffle_epi8(FOYE_SIMD_EXTRACT_HIGH_i(vsrc), even_mask)) };
+            _mm_shuffle_epi8(detail::split_low(vsrc), even_mask),
+            _mm_shuffle_epi8(detail::split_high(vsrc), even_mask)) };
     }
 
     uint32x4 interleave_even(uint32x8 input)
     {
         __m256i vsrc = input.data;
         return uint32x4{ _mm_unpacklo_epi64(
-            _mm_shuffle_epi32(FOYE_SIMD_EXTRACT_LOW_i(vsrc), _MM_SHUFFLE(2, 0, 2, 0)),
-            _mm_shuffle_epi32(FOYE_SIMD_EXTRACT_HIGH_i(vsrc), _MM_SHUFFLE(2, 0, 2, 0))) };
+            _mm_shuffle_epi32(detail::split_low(vsrc), _MM_SHUFFLE(2, 0, 2, 0)),
+            _mm_shuffle_epi32(detail::split_high(vsrc), _MM_SHUFFLE(2, 0, 2, 0))) };
     }
 
     uint64x2 interleave_even(uint64x4 input)
@@ -1964,8 +1965,8 @@ namespace fyx::simd
     float32x4 interleave_even(float32x8 input)
     {
         __m256 vsrc = input.data;
-        __m128 low = FOYE_SIMD_EXTRACT_LOW_f(vsrc);
-        __m128 high = FOYE_SIMD_EXTRACT_HIGH_f(vsrc);
+        __m128 low = detail::split_low(vsrc);
+        __m128 high = detail::split_high(vsrc);
         return float32x4{ _mm_shuffle_ps(low, high, _MM_SHUFFLE(2, 0, 2, 0)) };
     }
 
@@ -1993,8 +1994,8 @@ namespace fyx::simd
         );
 
         return uint8x16{ _mm_unpacklo_epi64(
-            _mm_shuffle_epi8(FOYE_SIMD_EXTRACT_LOW_i(vsrc), odd_mask),
-            _mm_shuffle_epi8(FOYE_SIMD_EXTRACT_HIGH_i(vsrc), odd_mask)) };
+            _mm_shuffle_epi8(detail::split_low(vsrc), odd_mask),
+            _mm_shuffle_epi8(detail::split_high(vsrc), odd_mask)) };
     }
 
     uint16x8 interleave_odd(uint16x16 input)
@@ -2006,16 +2007,16 @@ namespace fyx::simd
         );
 
         return uint16x8{ _mm_unpacklo_epi64(
-            _mm_shuffle_epi8(FOYE_SIMD_EXTRACT_LOW_i(vsrc), odd_mask),
-            _mm_shuffle_epi8(FOYE_SIMD_EXTRACT_HIGH_i(vsrc), odd_mask)) };
+            _mm_shuffle_epi8(detail::split_low(vsrc), odd_mask),
+            _mm_shuffle_epi8(detail::split_high(vsrc), odd_mask)) };
     }
 
     uint32x4 interleave_odd(uint32x8 input)
     {
         __m256i vsrc = input.data;
         return uint32x4{ _mm_unpacklo_epi64(
-            _mm_shuffle_epi32(FOYE_SIMD_EXTRACT_LOW_i(vsrc), _MM_SHUFFLE(3, 1, 3, 1)),
-            _mm_shuffle_epi32(FOYE_SIMD_EXTRACT_HIGH_i(vsrc), _MM_SHUFFLE(3, 1, 3, 1))) };
+            _mm_shuffle_epi32(detail::split_low(vsrc), _MM_SHUFFLE(3, 1, 3, 1)),
+            _mm_shuffle_epi32(detail::split_high(vsrc), _MM_SHUFFLE(3, 1, 3, 1))) };
     }
 
     uint64x2 interleave_odd(uint64x4 input)
@@ -2035,8 +2036,8 @@ namespace fyx::simd
     {
         __m256 vsrc = input.data;
         return float32x4{ _mm_shuffle_ps(
-            FOYE_SIMD_EXTRACT_LOW_f(vsrc),
-            FOYE_SIMD_EXTRACT_HIGH_f(vsrc),
+            detail::split_low(vsrc),
+            detail::split_high(vsrc),
             _MM_SHUFFLE(3, 1, 3, 1)) };
     }
 
@@ -2061,7 +2062,7 @@ namespace fyx::simd
         __m128i b = src2.data;
         __m128i low = _mm_unpacklo_epi8(a, b);
         __m128i high = _mm_unpackhi_epi8(a, b);
-        __m256i result = FOYE_SIMD_MERGE_i(low, high);
+        __m256i result = detail::merge(low, high);
         return uint8x32{ result };
     }
 
@@ -2071,7 +2072,7 @@ namespace fyx::simd
         __m128i b = src2.data;
         __m128i low = _mm_unpacklo_epi16(a, b);
         __m128i high = _mm_unpackhi_epi16(a, b);
-        __m256i result = FOYE_SIMD_MERGE_i(low, high);
+        __m256i result = detail::merge(low, high);
         return uint16x16{ result };
     }
 
@@ -2081,7 +2082,7 @@ namespace fyx::simd
         __m128i b = src2.data;
         __m128i low = _mm_unpacklo_epi32(a, b);
         __m128i high = _mm_unpackhi_epi32(a, b);
-        __m256i result = FOYE_SIMD_MERGE_i(low, high);
+        __m256i result = detail::merge(low, high);
         return uint32x8{ result };
     }
 
@@ -2091,7 +2092,7 @@ namespace fyx::simd
         __m128i b = src2.data;
         __m128i low = _mm_unpacklo_epi64(a, b);
         __m128i high = _mm_unpackhi_epi64(a, b);
-        __m256i result = FOYE_SIMD_MERGE_i(low, high);
+        __m256i result = detail::merge(low, high);
         return uint64x4{ result };
     }
 
@@ -2135,7 +2136,7 @@ namespace fyx::simd
         __m128 low128 = _mm_unpacklo_ps(v_oddbegin, v_src2);
         __m128 high128 = _mm_unpackhi_ps(v_oddbegin, v_src2);
 
-        __m256 result = FOYE_SIMD_MERGE_f(low128, high128);
+        __m256 result = detail::merge(low128, high128);
         return float32x8(result);
     }
 
@@ -2147,7 +2148,7 @@ namespace fyx::simd
         __m128d low128 = _mm_unpacklo_pd(v_oddbegin, v_src2);
         __m128d high128 = _mm_unpackhi_pd(v_oddbegin, v_src2);
 
-        __m256d result = FOYE_SIMD_MERGE_d(low128, high128);
+        __m256d result = detail::merge(low128, high128);
         return float64x4(result);
     }
 
