@@ -94,12 +94,17 @@ namespace fyx::simd
 	template<> uint64x4 expand<uint64x4, sint32x4>(sint32x4 input) { return uint64x4{ _mm256_cvtepu32_epi64(input.data) }; }
 	template<> float64x4 expand<float64x4, float32x4>(float32x4 input) { return float64x4{ _mm256_cvtps_pd(input.data) }; }
 #if defined(_FOYE_SIMD_HAS_FP16_)
-	template<> float32x8 expand<float32x8, float16x8>(float16x8 input) { return float32x8{ cvt8lane_fp16_to_fp32(input.data) }; }
+	template<> float32x8 expand<float32x8, float16x8>(float16x8 input) { return float32x8{ _mm256_cvtph_ps(input.data) }; }
 #endif
 #if defined(_FOYE_SIMD_HAS_BF16_)
-	template<> float32x8 expand<float32x8, bfloat16x8>(bfloat16x8 input) { return float32x8{ cvt8lane_bf16_to_fp32(input.data) }; }
+	template<> float32x8 expand<float32x8, bfloat16x8>(bfloat16x8 input) 
+	{
+		return float32x8{ _mm256_castsi256_ps(
+			_mm256_slli_epi32(
+				_mm256_cvtepu16_epi32(input.data), 16)) };
+	}
 #endif
-
+	
 	template<> uint16x8 expand_low<uint16x8, uint8x16>(uint8x16 input) { return uint16x8{ _mm_cvtepu8_epi16(input.data) }; }
 	template<> uint32x4 expand_low<uint32x4, uint16x8>(uint16x8 input) { return uint32x4{ _mm_cvtepu16_epi32(input.data) }; }
 	template<> uint64x2 expand_low<uint64x2, uint32x4>(uint32x4 input) { return uint64x2{ _mm_cvtepu32_epi64(input.data) }; }
@@ -113,28 +118,40 @@ namespace fyx::simd
 	template<> uint32x4 expand_low<uint32x4, sint16x8>(sint16x8 input) { return uint32x4{ _mm_cvtepi16_epi32(input.data) }; }
 	template<> uint64x2 expand_low<uint64x2, sint32x4>(sint32x4 input) { return uint64x2{ _mm_cvtepi32_epi64(input.data) }; }
 
-
-	template<> uint16x16 expand_low<uint16x16, uint8x32>(uint8x32 input) { return uint16x16{ _mm256_cvtepu8_epi16(FOYE_SIMD_EXTRACT_LOW_i(input.data)) }; }
-	template<> uint32x8 expand_low<uint32x8, uint16x16>(uint16x16 input) { return uint32x8{ _mm256_cvtepu16_epi32(FOYE_SIMD_EXTRACT_LOW_i(input.data)) }; }
-	template<> uint64x4 expand_low<uint64x4, uint32x8>(uint32x8 input) { return uint64x4{ _mm256_cvtepu32_epi64(FOYE_SIMD_EXTRACT_LOW_i(input.data)) }; }
-	template<> sint16x16 expand_low<sint16x16, uint8x32>(uint8x32 input) { return sint16x16{ _mm256_cvtepu8_epi16(FOYE_SIMD_EXTRACT_LOW_i(input.data)) }; }
-	template<> sint32x8 expand_low<sint32x8, uint16x16>(uint16x16 input) { return sint32x8{ _mm256_cvtepu16_epi32(FOYE_SIMD_EXTRACT_LOW_i(input.data)) }; }
-	template<> sint64x4 expand_low<sint64x4, uint32x8>(uint32x8 input) { return sint64x4{ _mm256_cvtepu32_epi64(FOYE_SIMD_EXTRACT_LOW_i(input.data)) }; }
-	template<> sint16x16 expand_low<sint16x16, sint8x32>(sint8x32 input) { return sint16x16{ _mm256_cvtepi8_epi16(FOYE_SIMD_EXTRACT_LOW_i(input.data)) }; }
-	template<> sint32x8 expand_low<sint32x8, sint16x16>(sint16x16 input) { return sint32x8{ _mm256_cvtepi16_epi32(FOYE_SIMD_EXTRACT_LOW_i(input.data)) }; }
-	template<> sint64x4 expand_low<sint64x4, sint32x8>(sint32x8 input) { return sint64x4{ _mm256_cvtepi32_epi64(FOYE_SIMD_EXTRACT_LOW_i(input.data)) }; }
-	template<> uint16x16 expand_low<uint16x16, sint8x32>(sint8x32 input) { return uint16x16{ _mm256_cvtepi8_epi16(FOYE_SIMD_EXTRACT_LOW_i(input.data)) }; }
-	template<> uint32x8 expand_low<uint32x8, sint16x16>(sint16x16 input) { return uint32x8{ _mm256_cvtepi16_epi32(FOYE_SIMD_EXTRACT_LOW_i(input.data)) }; }
-	template<> uint64x4 expand_low<uint64x4, sint32x8>(sint32x8 input) { return uint64x4{ _mm256_cvtepi32_epi64(FOYE_SIMD_EXTRACT_LOW_i(input.data)) }; }
+	template<> uint16x16 expand_low<uint16x16, uint8x32>(uint8x32 input) { return uint16x16{ _mm256_cvtepu8_epi16(detail::split_low(input.data)) }; }
+	template<> uint32x8 expand_low<uint32x8, uint16x16>(uint16x16 input) { return uint32x8{ _mm256_cvtepu16_epi32(detail::split_low(input.data)) }; }
+	template<> uint64x4 expand_low<uint64x4, uint32x8>(uint32x8 input) { return uint64x4{ _mm256_cvtepu32_epi64(detail::split_low(input.data)) }; }
+	template<> sint16x16 expand_low<sint16x16, uint8x32>(uint8x32 input) { return sint16x16{ _mm256_cvtepu8_epi16(detail::split_low(input.data)) }; }
+	template<> sint32x8 expand_low<sint32x8, uint16x16>(uint16x16 input) { return sint32x8{ _mm256_cvtepu16_epi32(detail::split_low(input.data)) }; }
+	template<> sint64x4 expand_low<sint64x4, uint32x8>(uint32x8 input) { return sint64x4{ _mm256_cvtepu32_epi64(detail::split_low(input.data)) }; }
+	template<> sint16x16 expand_low<sint16x16, sint8x32>(sint8x32 input) { return sint16x16{ _mm256_cvtepi8_epi16(detail::split_low(input.data)) }; }
+	template<> sint32x8 expand_low<sint32x8, sint16x16>(sint16x16 input) { return sint32x8{ _mm256_cvtepi16_epi32(detail::split_low(input.data)) }; }
+	template<> sint64x4 expand_low<sint64x4, sint32x8>(sint32x8 input) { return sint64x4{ _mm256_cvtepi32_epi64(detail::split_low(input.data)) }; }
+	template<> uint16x16 expand_low<uint16x16, sint8x32>(sint8x32 input) { return uint16x16{ _mm256_cvtepi8_epi16(detail::split_low(input.data)) }; }
+	template<> uint32x8 expand_low<uint32x8, sint16x16>(sint16x16 input) { return uint32x8{ _mm256_cvtepi16_epi32(detail::split_low(input.data)) }; }
+	template<> uint64x4 expand_low<uint64x4, sint32x8>(sint32x8 input) { return uint64x4{ _mm256_cvtepi32_epi64(detail::split_low(input.data)) }; }
 	template<> float64x2 expand_low<float64x2, float32x4>(float32x4 input) { return float64x2{ _mm_cvtps_pd(input.data) }; }
-	template<> float64x4 expand_low<float64x4, float32x8>(float32x8 input) { return float64x4{ _mm256_cvtps_pd(FOYE_SIMD_EXTRACT_LOW_f(input.data)) }; }
+	template<> float64x4 expand_low<float64x4, float32x8>(float32x8 input) { return float64x4{ _mm256_cvtps_pd(detail::split_low(input.data)) }; }
 #if defined(_FOYE_SIMD_HAS_FP16_)
-	template<> float32x4 expand_low<float32x4, float16x8>(float16x8 input) { return float32x4{ FOYE_SIMD_EXTRACT_LOW_f(cvt8lane_fp16_to_fp32(input.data)) }; }
-	template<> float32x8 expand_low<float32x8, float16x16>(float16x16 input) { return float32x8{ cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(input.data)) }; }
+	template<> float32x4 expand_low<float32x4, float16x8>(float16x8 input) { return float32x4{ detail::split_low(_mm256_cvtph_ps(input.data)) }; }
+	template<> float32x8 expand_low<float32x8, float16x16>(float16x16 input) { return float32x8{ _mm256_cvtph_ps(detail::split_low(input.data)) }; }
 #endif
 #if defined(_FOYE_SIMD_HAS_BF16_)
-	template<> float32x4 expand_low<float32x4, bfloat16x8>(bfloat16x8 input) { return float32x4{ FOYE_SIMD_EXTRACT_LOW_f(cvt8lane_bf16_to_fp32(input.data)) }; }
-	template<> float32x8 expand_low<float32x8, bfloat16x16>(bfloat16x16 input) { return float32x8{ cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(input.data)) }; }
+	template<> float32x4 expand_low<float32x4, bfloat16x8>(bfloat16x8 input) 
+	{
+		return float32x4{ detail::split_low(
+			_mm256_castsi256_ps(
+				_mm256_slli_epi32(
+					_mm256_cvtepu16_epi32(input.data), 16))) };
+	}
+
+	template<> float32x8 expand_low<float32x8, bfloat16x16>(bfloat16x16 input) 
+	{
+		return float32x8{ _mm256_castsi256_ps(
+			_mm256_slli_epi32(
+				_mm256_cvtepu16_epi32(
+					detail::split_low(input.data)), 16)) };
+	}
 #endif
 
 	template<> uint16x8 expand_high<uint16x8, uint8x16>(uint8x16 input) { return uint16x8{ _mm_cvtepu8_epi16(_mm_srli_si128(input.data, 8)) }; }
@@ -149,27 +166,38 @@ namespace fyx::simd
 	template<> uint16x8 expand_high<uint16x8, sint8x16>(sint8x16 input) { return uint16x8{ _mm_cvtepi8_epi16(_mm_srli_si128(input.data, 8)) }; }
 	template<> uint32x4 expand_high<uint32x4, sint16x8>(sint16x8 input) { return uint32x4{ _mm_cvtepi16_epi32(_mm_srli_si128(input.data, 8)) }; }
 	template<> uint64x2 expand_high<uint64x2, sint32x4>(sint32x4 input) { return uint64x2{ _mm_cvtepi32_epi64(_mm_srli_si128(input.data, 8)) }; }
-	template<> uint16x16 expand_high<uint16x16, uint8x32>(uint8x32 input) { return uint16x16{ _mm256_cvtepu8_epi16(FOYE_SIMD_EXTRACT_HIGH_i(input.data)) }; }
-	template<> uint32x8 expand_high<uint32x8, uint16x16>(uint16x16 input) { return uint32x8{ _mm256_cvtepu16_epi32(FOYE_SIMD_EXTRACT_HIGH_i(input.data)) }; }
-	template<> uint64x4 expand_high<uint64x4, uint32x8>(uint32x8 input) { return uint64x4{ _mm256_cvtepu32_epi64(FOYE_SIMD_EXTRACT_HIGH_i(input.data)) }; }
-	template<> sint16x16 expand_high<sint16x16, uint8x32>(uint8x32 input) { return sint16x16{ _mm256_cvtepu8_epi16(FOYE_SIMD_EXTRACT_HIGH_i(input.data)) }; }
-	template<> sint32x8 expand_high<sint32x8, uint16x16>(uint16x16 input) { return sint32x8{ _mm256_cvtepu16_epi32(FOYE_SIMD_EXTRACT_HIGH_i(input.data)) }; }
-	template<> sint64x4 expand_high<sint64x4, uint32x8>(uint32x8 input) { return sint64x4{ _mm256_cvtepu32_epi64(FOYE_SIMD_EXTRACT_HIGH_i(input.data)) }; }
-	template<> sint16x16 expand_high<sint16x16, sint8x32>(sint8x32 input) { return sint16x16{ _mm256_cvtepi8_epi16(FOYE_SIMD_EXTRACT_HIGH_i(input.data)) }; }
-	template<> sint32x8 expand_high<sint32x8, sint16x16>(sint16x16 input) { return sint32x8{ _mm256_cvtepi16_epi32(FOYE_SIMD_EXTRACT_HIGH_i(input.data)) }; }
-	template<> sint64x4 expand_high<sint64x4, sint32x8>(sint32x8 input) { return sint64x4{ _mm256_cvtepi32_epi64(FOYE_SIMD_EXTRACT_HIGH_i(input.data)) }; }
-	template<> uint16x16 expand_high<uint16x16, sint8x32>(sint8x32 input) { return uint16x16{ _mm256_cvtepi8_epi16(FOYE_SIMD_EXTRACT_HIGH_i(input.data)) }; }
-	template<> uint32x8 expand_high<uint32x8, sint16x16>(sint16x16 input) { return uint32x8{ _mm256_cvtepi16_epi32(FOYE_SIMD_EXTRACT_HIGH_i(input.data)) }; }
-	template<> uint64x4 expand_high<uint64x4, sint32x8>(sint32x8 input) { return uint64x4{ _mm256_cvtepi32_epi64(FOYE_SIMD_EXTRACT_HIGH_i(input.data)) }; }
+	template<> uint16x16 expand_high<uint16x16, uint8x32>(uint8x32 input) { return uint16x16{ _mm256_cvtepu8_epi16(detail::split_high(input.data)) }; }
+	template<> uint32x8 expand_high<uint32x8, uint16x16>(uint16x16 input) { return uint32x8{ _mm256_cvtepu16_epi32(detail::split_high(input.data)) }; }
+	template<> uint64x4 expand_high<uint64x4, uint32x8>(uint32x8 input) { return uint64x4{ _mm256_cvtepu32_epi64(detail::split_high(input.data)) }; }
+	template<> sint16x16 expand_high<sint16x16, uint8x32>(uint8x32 input) { return sint16x16{ _mm256_cvtepu8_epi16(detail::split_high(input.data)) }; }
+	template<> sint32x8 expand_high<sint32x8, uint16x16>(uint16x16 input) { return sint32x8{ _mm256_cvtepu16_epi32(detail::split_high(input.data)) }; }
+	template<> sint64x4 expand_high<sint64x4, uint32x8>(uint32x8 input) { return sint64x4{ _mm256_cvtepu32_epi64(detail::split_high(input.data)) }; }
+	template<> sint16x16 expand_high<sint16x16, sint8x32>(sint8x32 input) { return sint16x16{ _mm256_cvtepi8_epi16(detail::split_high(input.data)) }; }
+	template<> sint32x8 expand_high<sint32x8, sint16x16>(sint16x16 input) { return sint32x8{ _mm256_cvtepi16_epi32(detail::split_high(input.data)) }; }
+	template<> sint64x4 expand_high<sint64x4, sint32x8>(sint32x8 input) { return sint64x4{ _mm256_cvtepi32_epi64(detail::split_high(input.data)) }; }
+	template<> uint16x16 expand_high<uint16x16, sint8x32>(sint8x32 input) { return uint16x16{ _mm256_cvtepi8_epi16(detail::split_high(input.data)) }; }
+	template<> uint32x8 expand_high<uint32x8, sint16x16>(sint16x16 input) { return uint32x8{ _mm256_cvtepi16_epi32(detail::split_high(input.data)) }; }
+	template<> uint64x4 expand_high<uint64x4, sint32x8>(sint32x8 input) { return uint64x4{ _mm256_cvtepi32_epi64(detail::split_high(input.data)) }; }
 	template<> float64x2 expand_high<float64x2, float32x4>(float32x4 input) { return float64x2{ _mm_cvtps_pd(_mm_movehl_ps(input.data, input.data)) }; }
-	template<> float64x4 expand_high<float64x4, float32x8>(float32x8 input) { return float64x4{ _mm256_cvtps_pd(FOYE_SIMD_EXTRACT_HIGH_f(input.data)) }; }
+	template<> float64x4 expand_high<float64x4, float32x8>(float32x8 input) { return float64x4{ _mm256_cvtps_pd(detail::split_high(input.data)) }; }
 #if defined(_FOYE_SIMD_HAS_FP16_)
-	template<> float32x4 expand_high<float32x4, float16x8>(float16x8 input) { return float32x4{ FOYE_SIMD_EXTRACT_HIGH_f(cvt8lane_fp16_to_fp32(input.data)) }; }
-	template<> float32x8 expand_high<float32x8, float16x16>(float16x16 input) { return float32x8{ cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(input.data)) }; }
+	template<> float32x4 expand_high<float32x4, float16x8>(float16x8 input) { return float32x4{ detail::split_high(_mm256_cvtph_ps(input.data)) }; }
+	template<> float32x8 expand_high<float32x8, float16x16>(float16x16 input) { return float32x8{ _mm256_cvtph_ps(detail::split_high(input.data)) }; }
 #endif
 #if defined(_FOYE_SIMD_HAS_BF16_)
-	template<> float32x4 expand_high<float32x4, bfloat16x8>(bfloat16x8 input) { return float32x4{ FOYE_SIMD_EXTRACT_HIGH_f(cvt8lane_bf16_to_fp32(input.data)) }; }
-	template<> float32x8 expand_high<float32x8, bfloat16x16>(bfloat16x16 input) { return float32x8{ cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(input.data)) }; }
+	template<> float32x4 expand_high<float32x4, bfloat16x8>(bfloat16x8 input) 
+	{
+		return float32x4{ detail::split_high(
+			_mm256_castsi256_ps(_mm256_slli_epi32(
+				_mm256_cvtepu16_epi32(input.data), 16))) };
+	}
+
+	template<> float32x8 expand_high<float32x8, bfloat16x16>(bfloat16x16 input) 
+	{
+		return float32x8{ _mm256_castsi256_ps(
+			_mm256_slli_epi32(_mm256_cvtepu16_epi32(
+				detail::split_high(input.data)), 16)) };
+	}
 #endif
 
 	template<> uint32x4 narrowing(uint64x4 source)
@@ -214,10 +242,36 @@ namespace fyx::simd
 	template<> uint16x8 narrowing(float32x8 source) { return fyx::simd::narrowing<uint16x8>(fyx::simd::trunc_as_i(source)); }
 	
 #if defined(_FOYE_SIMD_HAS_FP16_)
-	template<> float16x8 narrowing(float32x8 source) { return float16x8{ cvt8lane_fp32_to_fp16(source.data) }; }
+	template<> float16x8 narrowing(float32x8 source) 
+	{
+		return float16x8{ _mm256_cvtps_ph(source.data, _MM_FROUND_CUR_DIRECTION) }; 
+	}
 #endif
 #if defined(_FOYE_SIMD_HAS_BF16_)
-	template<> bfloat16x8 narrowing(float32x8 source) { return bfloat16x8{ cvt8lane_fp32_to_bf16(source.data) }; }
+	template<> bfloat16x8 narrowing(float32x8 source) 
+	{
+		const __m256i v_exp_mask = _mm256_set1_epi32(0x7F800000);
+		const __m256i v_mant_mask = _mm256_set1_epi32(0x007FFFFF);
+		const __m256i v_zero = _mm256_setzero_si256();
+
+		const __m256i v = _mm256_castps_si256(source.data);
+
+		const __m256i is_nan = _mm256_and_si256(
+			_mm256_cmpeq_epi32(_mm256_and_si256(v, v_exp_mask), v_exp_mask),
+			_mm256_cmpgt_epi32(_mm256_and_si256(v, v_mant_mask), v_zero));
+
+		__m256i shifted = _mm256_srli_epi32(v, 16);
+		__m256i shifted_low = _mm256_and_si256(shifted, _mm256_set1_epi32(0x0000FFFF));
+
+		__m256i shifted_updata = _mm256_or_si256(shifted,
+			_mm256_and_si256(
+				_mm256_set1_epi32(0x00000001),
+				_mm256_and_si256(is_nan, _mm256_cmpeq_epi32(shifted_low, v_zero))));
+
+		return bfloat16x8{ _mm_packus_epi32(
+			_mm256_extractf128_si256(shifted_updata, 0),
+			_mm256_extractf128_si256(shifted_updata, 1)) };
+	}
 #endif
 
 	template<> float32x8 floating(sint16x8 input) { return float32x8{ _mm256_cvtepi32_ps(_mm256_cvtepi16_epi32(input.data)) }; }
@@ -230,18 +284,12 @@ namespace fyx::simd
 
 	template<> float32x8 floating(uint32x8 input)
 	{
-		__m256 result = FOYE_SIMD_MERGE_f(
-			_mm_cvtepu32_ps(FOYE_SIMD_EXTRACT_HIGH_i(input.data)),
-			_mm_cvtepu32_ps(FOYE_SIMD_EXTRACT_LOW_i(input.data)));
+		__m256 result = detail::merge(
+			_mm_cvtepu32_ps(detail::split_high(input.data)),
+			_mm_cvtepu32_ps(detail::split_low(input.data)));
 		return float32x8{ result };
 	}
 
-#ifndef _FOYE_SIMD_ENABLE_EMULATED_
-	DEF_NOTSUPPORTED_IMPLEMENT(float32x4 floating(sint64x4 input))
-	DEF_NOTSUPPORTED_IMPLEMENT(float32x4 floating(uint64x4 input))
-	DEF_NOTSUPPORTED_IMPLEMENT(float64x4 floating(sint64x4 input))
-	DEF_NOTSUPPORTED_IMPLEMENT(float64x4 floating(uint64x4 input))
-#else
 	template<> float64x2 floating(uint64x2 input)
 	{
 		__m128i v = input.data;
@@ -311,16 +359,13 @@ namespace fyx::simd
 		return result;
 	}
 
-#undef DEFINE_FROMI64_floating_FALLBACK
-#endif
-
 #if defined(_FOYE_SIMD_HAS_FP16_) || defined(_FOYE_SIMD_HAS_BF16_)
 #define DEFINE_AS_HALF(dst_vtype, cvtfunc) \
 template<> dst_vtype##x8 floating(uint32x8 input)\
 {\
-	__m128 low_f = _mm_cvtepu32_ps(FOYE_SIMD_EXTRACT_LOW_i(input.data));\
-	__m128 high_f = _mm_cvtepu32_ps(FOYE_SIMD_EXTRACT_HIGH_i(input.data));\
-	return dst_vtype##x8{ cvtfunc(FOYE_SIMD_MERGE_f(high_f, low_f)) };\
+	__m128 low_f = _mm_cvtepu32_ps(detail::split_low(input.data));\
+	__m128 high_f = _mm_cvtepu32_ps(detail::split_high(input.data));\
+	return dst_vtype##x8{ cvtfunc(detail::merge(high_f, low_f)) };\
 }\
 template<> dst_vtype##x8 floating(sint16x8 input)\
 {\
@@ -340,9 +385,9 @@ template<> dst_vtype##x8 floating(sint32x8 input)\
 }\
 template<> dst_vtype##x16 floating(uint16x16 input)\
 {\
-	__m256 vf32_low = _mm256_cvtepi32_ps(_mm256_cvtepu16_epi32((FOYE_SIMD_EXTRACT_LOW_i(input.data))));\
-	__m256 vf32_high = _mm256_cvtepi32_ps(_mm256_cvtepu16_epi32((FOYE_SIMD_EXTRACT_HIGH_i(input.data))));\
-	return dst_vtype##x16{ FOYE_SIMD_MERGE_i(\
+	__m256 vf32_low = _mm256_cvtepi32_ps(_mm256_cvtepu16_epi32((detail::split_low(input.data))));\
+	__m256 vf32_high = _mm256_cvtepi32_ps(_mm256_cvtepu16_epi32((detail::split_high(input.data))));\
+	return dst_vtype##x16{ detail::merge(\
 		cvtfunc(vf32_low),\
 		cvtfunc(vf32_high)) };\
 }\
@@ -350,15 +395,15 @@ template<> dst_vtype##x16 floating(uint8x16 input)\
 {\
 	__m256 low_f32 = _mm256_cvtepi32_ps(_mm256_cvtepu8_epi32(input.data));\
 	__m256 high_f32 = _mm256_cvtepi32_ps(_mm256_cvtepu8_epi32(_mm_unpackhi_epi64(input.data, input.data)));\
-	return dst_vtype##x16{ FOYE_SIMD_MERGE_i(\
+	return dst_vtype##x16{ detail::merge(\
 		cvtfunc(low_f32),\
 		cvtfunc(high_f32)) };\
 }\
 template<> dst_vtype##x16 floating(sint16x16 input)\
 {\
-	__m256 vf32_low = _mm256_cvtepi32_ps(_mm256_cvtepi16_epi32((FOYE_SIMD_EXTRACT_LOW_i(input.data))));\
-	__m256 vf32_high = _mm256_cvtepi32_ps(_mm256_cvtepi16_epi32((FOYE_SIMD_EXTRACT_HIGH_i(input.data))));\
-	return dst_vtype##x16{ FOYE_SIMD_MERGE_i(\
+	__m256 vf32_low = _mm256_cvtepi32_ps(_mm256_cvtepi16_epi32((detail::split_low(input.data))));\
+	__m256 vf32_high = _mm256_cvtepi32_ps(_mm256_cvtepi16_epi32((detail::split_high(input.data))));\
+	return dst_vtype##x16{ detail::merge(\
 		cvtfunc(vf32_low),\
 		cvtfunc(vf32_high)) };\
 }\
@@ -366,7 +411,7 @@ template<> dst_vtype##x16 floating(sint8x16 input)\
 {\
 	__m256 low_f32 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(input.data));\
 	__m256 high_f32 = _mm256_cvtepi32_ps(_mm256_cvtepi8_epi32(_mm_unpackhi_epi64(input.data, input.data)));\
-	return dst_vtype##x16{ FOYE_SIMD_MERGE_i(\
+	return dst_vtype##x16{ detail::merge(\
 		cvtfunc(low_f32),\
 		cvtfunc(high_f32)) };\
 }
@@ -378,46 +423,70 @@ template<> dst_vtype##x16 floating(sint8x16 input)\
 #endif
 
 #if defined(_FOYE_SIMD_HAS_BF16_)
-		DEFINE_AS_HALF(bfloat16, cvt8lane_fp32_to_bf16)
+	DEFINE_AS_HALF(bfloat16, cvt8lane_fp32_to_bf16)
 #endif
 }
 
+#if 0
 namespace fyx::simd
 {
-#if 0
 	template<typename target_simd_type, typename source_simd_type>
-	target_simd_type convert_sat(source_simd_type source)
-	{
-		static_assert(target_simd_type::lane_width == source_simd_type::lane_width);
+	target_simd_type narrowing_sat(source_simd_type source) { __assume(false); }
 
-		using target_scalar_t = typename target_simd_type::scalar_t;
-		using source_scalar_t = typename source_simd_type::scalar_t;
-		if constexpr (target_simd_type::scalar_bit_width == source_simd_type::scalar_bit_width)
-		{
-			if constexpr (fyx::simd::is_signed_integral_basic_simd_v<source_simd_type>
-				&& fyx::simd::is_unsigned_integral_basic_simd_v<target_simd_type>)
-			{
-				const source_simd_type zero = fyx::simd::allzero_bits_as<source_simd_type>();
-				source_simd_type vres = fyx::simd::max(source, zero);
-				return fyx::simd::reinterpret<target_simd_type>(vres);
-			}
-			else if constexpr (fyx::simd::is_unsigned_integral_basic_simd_v<source_simd_type>
-				&& fyx::simd::is_signed_integral_basic_simd_v<target_simd_type>)
-			{
-				constexpr target_scalar_t max_sint = std::numeric_limits<target_scalar_t>::max();
-				source_simd_type threshold = fyx::simd::load_brocast<source_simd_type>(static_cast<source_scalar_t>(max_sint));
+	template<> uint8x16 narrowing_sat<uint8x16, uint16x16>(uint16x16 source);
+	template<> uint8x16 narrowing_sat<uint8x16, sint16x16>(sint16x16 source);
+	template<> uint8x16 narrowing_sat<uint8x16, sint8x16>(sint8x16 source);
 
-				source_simd_type vres = fyx::simd::min(source, threshold);
-				return fyx::simd::reinterpret<target_simd_type>(vres);
-			}
-			else
-			{
-				return fyx::simd::reinterpret<target_simd_type>(source);
-			}
-		}
-	}
+	template<> sint8x16 narrowing_sat<sint8x16, uint16x16>(uint16x16 source);
+	template<> sint8x16 narrowing_sat<sint8x16, sint16x16>(sint16x16 source);
+	template<> sint8x16 narrowing_sat<sint8x16, uint8x16>(uint8x16 source);
+
+	template<> uint16x8 narrowing_sat<uint16x8, sint32x8>(sint32x8 source);
+	template<> uint16x8 narrowing_sat<uint16x8, sint32x8>(sint32x8 source);
+	template<> uint16x8 narrowing_sat<uint16x8, sint16x8>(sint16x8 source);
+
+	template<> sint16x8 narrowing_sat<sint16x8, sint32x8>(sint32x8 source);
+	template<> sint16x8 narrowing_sat<sint16x8, sint32x8>(sint32x8 source);
+	template<> sint16x8 narrowing_sat<sint16x8, uint16x8>(uint16x8 source);
+
+	template<> uint32x4 narrowing_sat<uint32x4, sint64x4>(sint64x4 source);
+	template<> uint32x4 narrowing_sat<uint32x4, sint64x4>(sint64x4 source);
+	template<> uint32x4 narrowing_sat<uint32x4, sint32x4>(sint32x4 source);
+
+	template<> sint32x4 narrowing_sat<sint32x4, sint64x4>(sint64x4 source);
+	template<> sint32x4 narrowing_sat<sint32x4, sint64x4>(sint64x4 source);
+	template<> sint32x4 narrowing_sat<sint32x4, uint32x4>(uint32x4 source);
+
+	template<> sint64x4 narrowing_sat<sint64x4, uint64x4>(uint64x4 source);
+	template<> uint64x4 narrowing_sat<uint64x4, sint64x4>(sint64x4 source);
+
+#if defined(_FOYE_SIMD_HAS_FP16_)
+	template<> float16x8 narrowing_sat<float16x8, sint16x8>(sint16x8 source);
+	template<> float16x8 narrowing_sat<float16x8, uint16x8>(uint16x8 source);
+	template<> float16x8 narrowing_sat<float16x8, sint32x8>(sint32x8 source);
+	template<> float16x8 narrowing_sat<float16x8, uint32x8>(uint32x8 source);
+	template<> float16x16 narrowing_sat<float16x16, sint16x16>(sint16x16 source);
+	template<> float16x16 narrowing_sat<float16x16, uint16x16>(uint16x16 source);
 #endif
 
+#if defined(_FOYE_SIMD_HAS_BF16_)
+	template<> bfloat16x8 narrowing_sat<bfloat16x8, sint16x8>(sint16x8 source);
+	template<> bfloat16x8 narrowing_sat<bfloat16x8, uint16x8>(uint16x8 source);
+	template<> bfloat16x8 narrowing_sat<bfloat16x8, sint32x8>(sint32x8 source);
+	template<> bfloat16x8 narrowing_sat<bfloat16x8, uint32x8>(uint32x8 source);
+	template<> bfloat16x16 narrowing_sat<bfloat16x16, sint16x16>(sint16x16 source);
+	template<> bfloat16x16 narrowing_sat<bfloat16x16, uint16x16>(uint16x16 source);
+#endif
+}
+#endif
+
+
+
+
+
+
+namespace fyx::simd
+{
 	template<typename target_simd_type, typename source_simd_type>
 	target_simd_type convert_std(source_simd_type source)
 	{
