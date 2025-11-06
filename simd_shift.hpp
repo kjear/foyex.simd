@@ -6,7 +6,7 @@
 #include "simd_utility.hpp"
 #include "simd_cvt.hpp"
 
-namespace fyx::simd // left shift by runtime same shift amount, logical for both unsigned and signed
+namespace fyx::simd
 {
     uint16x8 shift_left(uint16x8 input, std::uint16_t shift_amount)
     {
@@ -128,7 +128,7 @@ namespace fyx::simd // left shift by runtime same shift amount, logical for both
 #endif
 }
 
-namespace fyx::simd // right shift by runtime same shift amount, arithmetic for signed and logical for unsigned
+namespace fyx::simd
 {
     uint16x8 shift_right(uint16x8 input, std::uint16_t shift_amount)
     {
@@ -258,7 +258,7 @@ namespace fyx::simd // right shift by runtime same shift amount, arithmetic for 
 #endif
 }
 
-namespace fyx::simd // left shift by compile-time same shift amount, logical for both signed and unsigned
+namespace fyx::simd
 {
 #if defined(_FOYE_SIMD_ENABLE_EMULATED_)
     template<int shift_amount> requires(shift_amount >= 0 && shift_amount <= 7)
@@ -355,7 +355,7 @@ namespace fyx::simd // left shift by compile-time same shift amount, logical for
         sint64x4 shift_left(sint64x4 input) { return sint64x4{ _mm256_slli_epi64(input.data, shift_amount) }; }
 }
 
-namespace fyx::simd // right shift by compile-time same shift amount, arithmetic for signed and logical for unsigned
+namespace fyx::simd
 {
 #if defined(_FOYE_SIMD_ENABLE_EMULATED_)
     template<int shift_amount> requires(shift_amount >= 0 && shift_amount <= 7)
@@ -453,7 +453,7 @@ namespace fyx::simd // right shift by compile-time same shift amount, arithmetic
         sint64x4 shift_right(sint64x4 input) { return sint64x4{ _mm256_srai_epi64(input.data, shift_amount) }; }
 }
 
-namespace fyx::simd  // left shift by runtime variable shift amount, logical for both signed and unsigned
+namespace fyx::simd
 {
 #if defined(_FOYE_SIMD_ENABLE_EMULATED_)
     uint16x8 shift_left(uint16x8 input, uint16x8 shift_amount)
@@ -594,8 +594,7 @@ namespace fyx::simd  // left shift by runtime variable shift amount, logical for
     }
 }
 
-
-namespace fyx::simd // right shift by runtime variable shift amount, arithmetic for signed and logical for unsigned
+namespace fyx::simd
 {
 #if defined(_FOYE_SIMD_ENABLE_EMULATED_)
     uint16x8 shift_right(uint16x8 input, uint16x8 shift_amount)
