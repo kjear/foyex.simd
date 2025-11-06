@@ -138,79 +138,36 @@ namespace fyx::simd
 #if defined(_FOYE_SIMD_ENABLE_EMULATED_)
     sint8x16 multiplies(sint8x16 lhs, sint8x16 rhs)
     {
-        __m256i sv16l = _mm256_cvtepi8_epi16(lhs.data);
-        __m256i sv16r = _mm256_cvtepi8_epi16(rhs.data);
-        __m256i sv16res = _mm256_mullo_epi16(sv16l, sv16r);
-
-        __m256i low8 = _mm256_and_si256(sv16res, _mm256_set1_epi16(255));
-
-        return sint8x16{ _mm_packus_epi16(
-            _mm256_extracti128_si256(low8, 0),
-            _mm256_extracti128_si256(low8, 1)) };
+        return narrowing<sint8x16>(
+            multiplies(expand<sint16x16>(lhs), expand<sint16x16>(rhs)));
     }
 
     sint8x32 multiplies(sint8x32 lhs, sint8x32 rhs)
     {
-        __m256i lhs_low = _mm256_cvtepi8_epi16(_mm256_castsi256_si128(lhs.data));
-        __m256i mul_right_low = _mm256_cvtepi8_epi16(_mm256_castsi256_si128(rhs.data));
+        sint8x16 result_low = narrowing<sint8x16>(
+            multiplies(expand_low<sint16x16>(lhs), expand_low<sint16x16>(rhs)));
 
-        __m256i lhs_high = _mm256_cvtepi8_epi16(_mm256_extracti128_si256(lhs.data, 1));
-        __m256i mul_right_high = _mm256_cvtepi8_epi16(_mm256_extracti128_si256(rhs.data, 1));
-
-        __m256i cast_mask = _mm256_set1_epi16(255);
-        __m256i res_low_casted = _mm256_and_si256(_mm256_mullo_epi16(lhs_low, mul_right_low), cast_mask);
-        __m256i res_high_casted = _mm256_and_si256(_mm256_mullo_epi16(lhs_high, mul_right_high), cast_mask);
-
-        __m128i merged_low = _mm_packus_epi16(
-            _mm256_extracti128_si256(res_low_casted, 0),
-            _mm256_extracti128_si256(res_low_casted, 1));
-
-        __m128i merged_high = _mm_packus_epi16(
-            _mm256_extracti128_si256(res_high_casted, 0),
-            _mm256_extracti128_si256(res_high_casted, 1));
-
-        return sint8x32{ _mm256_inserti128_si256(
-            _mm256_castsi128_si256(merged_low), merged_high, 0x1) };
+        sint8x16 result_high = narrowing<sint8x16>(
+            multiplies(expand_high<sint16x16>(lhs), expand_high<sint16x16>(rhs)));
+        return merge(result_low, result_high);
     }
 
     uint8x16 multiplies(uint8x16 lhs, uint8x16 rhs)
     {
-        __m256i sv16l = _mm256_cvtepu8_epi16(lhs.data);
-        __m256i sv16r = _mm256_cvtepu8_epi16(rhs.data);
-        __m256i sv16res = _mm256_mullo_epi16(sv16l, sv16r);
-
-        __m256i low8 = _mm256_and_si256(sv16res, _mm256_set1_epi16(255));
-
-        __m128i low128 = _mm256_castsi256_si128(low8);
-        __m128i high128 = _mm256_extracti128_si256(low8, 1);
-        return uint8x16{ _mm_packus_epi16(low128, high128) };
+        sint16x16 sv16l = expand<sint16x16>(lhs);
+        sint16x16 sv16r = expand<sint16x16>(rhs);
+        sint16x16 sv16res = multiplies(sv16l, sv16r);
+        return narrowing<uint8x16>(bitwise_AND(sv16res, load_brocast<sint16x16>(255)));
     }
 
     uint8x32 multiplies(uint8x32 lhs, uint8x32 rhs)
     {
-        __m256i lhs_low = _mm256_cvtepu8_epi16(_mm256_castsi256_si128(lhs.data));
-        __m256i rhs_low = _mm256_cvtepu8_epi16(_mm256_castsi256_si128(rhs.data));
+        uint8x16 result_low = narrowing<uint8x16>(
+            multiplies(expand_low<sint16x16>(lhs), expand_low<sint16x16>(rhs)));
 
-        __m256i lhs_high = _mm256_cvtepu8_epi16(_mm256_extracti128_si256(lhs.data, 1));
-        __m256i rhs_high = _mm256_cvtepu8_epi16(_mm256_extracti128_si256(rhs.data, 1));
-
-        __m256i res_low = _mm256_mullo_epi16(lhs_low, rhs_low);
-        __m256i res_high = _mm256_mullo_epi16(lhs_high, rhs_high);
-
-        const __m256i mask = _mm256_set1_epi16(0x00FF);
-        res_low = _mm256_and_si256(res_low, mask);
-        res_high = _mm256_and_si256(res_high, mask);
-
-        __m128i packed_low = _mm_packus_epi16(
-            _mm256_castsi256_si128(res_low),
-            _mm256_extracti128_si256(res_low, 1));
-
-        __m128i packed_high = _mm_packus_epi16(
-            _mm256_castsi256_si128(res_high),
-            _mm256_extracti128_si256(res_high, 1));
-
-        return uint8x32{ _mm256_insertf128_si256(
-            _mm256_castsi128_si256(packed_low), (packed_high), 0x1) };
+        uint8x16 result_high = narrowing<uint8x16>(
+            multiplies(expand_high<sint16x16>(lhs), expand_high<sint16x16>(rhs)));
+        return merge(result_low, result_high);
     }
 
     namespace detail
@@ -253,6 +210,30 @@ namespace fyx::simd
     sint16x16 remainder(sint16x16 lhs, sint16x16 rhs) { return sint16x16{ _mm256_rem_epi16(lhs.data, rhs.data) }; }
     sint32x8 remainder(sint32x8 lhs, sint32x8 rhs) { return sint32x8{ _mm256_rem_epi32(lhs.data, rhs.data) }; }
     sint64x4 remainder(sint64x4 lhs, sint64x4 rhs) { return sint64x4{ _mm256_rem_epi64(lhs.data, rhs.data) }; }
+
+    sint8x16 negate(sint8x16 input) { return minus(allzero_bits_as<sint8x16>(), input); }
+    sint16x8 negate(sint16x8 input) { return minus(allzero_bits_as<sint16x8>(), input); }
+    sint32x4 negate(sint32x4 input) { return minus(allzero_bits_as<sint32x4>(), input); }
+    sint64x2 negate(sint64x2 input) { return minus(allzero_bits_as<sint64x2>(), input); }
+
+    sint8x32 negate(sint8x32 input) { return minus(allzero_bits_as<sint8x32>(), input); }
+    sint16x16 negate(sint16x16 input) { return minus(allzero_bits_as<sint16x16>(), input); }
+    sint32x8 negate(sint32x8 input) { return minus(allzero_bits_as<sint32x8>(), input); }
+    sint64x4 negate(sint64x4 input) { return minus(allzero_bits_as<sint64x4>(), input); }
+
+    float32x8 negate(float32x8 input) { return bitwise_XOR(input, load_brocast<float32x8>(-0.0f)); }
+    float32x4 negate(float32x4 input) { return bitwise_XOR(input, load_brocast<float32x4>(-0.0f)); }
+    float64x4 negate(float64x4 input) { return bitwise_XOR(input, load_brocast<float64x4>(-0.0)); }
+    float64x2 negate(float64x2 input) { return bitwise_XOR(input, load_brocast<float64x2>(-0.0)); }
+
+#if defined(_FOYE_SIMD_HAS_FP16_)
+    float16x8 negate(float16x8 input) { return bitwise_XOR(input, reinterpret<float16x8>(load_brocast<uint16x8>(0b1000000000000000))); }
+    float16x16 negate(float16x16 input) { return bitwise_XOR(input, reinterpret<float16x16>(load_brocast<uint16x16>(0b1000000000000000))); }
+#endif
+#if defined(_FOYE_SIMD_HAS_FP16_)
+    bfloat16x8 negate(bfloat16x8 input) { return bitwise_XOR(input, reinterpret<bfloat16x8>(load_brocast<uint16x8>(0b1000000000000000))); }
+    bfloat16x16 negate(bfloat16x16 input) { return bitwise_XOR(input, reinterpret<bfloat16x16>(load_brocast<uint16x16>(0b1000000000000000))); }
+#endif
 }
 
 namespace fyx::simd
@@ -343,22 +324,28 @@ input_simd_type cmpfunc(input_simd_type lhs, input_simd_type rhs)\
     float64x4 clamp(float64x4 input, float64x4 minval, float64x4 maxval) { return float64x4{ fyx::simd::min(fyx::simd::max(input, minval), maxval) }; }
 
 #if defined(_FOYE_SIMD_HAS_FP16_)
-    float16x8 clamp(float16x8 input, float16x8 minval, float16x8 maxval) { return float16x8{ fyx::simd::min(fyx::simd::max(input, minval), maxval) }; }
-    float16x16 clamp(float16x16 input, float16x16 minval, float16x16 maxval) { return float16x16{ fyx::simd::min(fyx::simd::max(input, minval), maxval) }; }
+    float16x8 clamp(float16x8 input, float16x8 minval, float16x8 maxval) 
+    { return float16x8{ fyx::simd::min(fyx::simd::max(input, minval), maxval) }; }
+
+    float16x16 clamp(float16x16 input, float16x16 minval, float16x16 maxval)
+    { return float16x16{ fyx::simd::min(fyx::simd::max(input, minval), maxval) }; }
 #endif
 #if defined(_FOYE_SIMD_HAS_FP16_)
-    bfloat16x8 clamp(bfloat16x8 input, bfloat16x8 minval, bfloat16x8 maxval) { return bfloat16x8{ fyx::simd::min(fyx::simd::max(input, minval), maxval) }; }
-    bfloat16x16 clamp(bfloat16x16 input, bfloat16x16 minval, bfloat16x16 maxval) { return bfloat16x16{ fyx::simd::min(fyx::simd::max(input, minval), maxval) }; }
+    bfloat16x8 clamp(bfloat16x8 input, bfloat16x8 minval, bfloat16x8 maxval)
+    { return bfloat16x8{ fyx::simd::min(fyx::simd::max(input, minval), maxval) }; }
+
+    bfloat16x16 clamp(bfloat16x16 input, bfloat16x16 minval, bfloat16x16 maxval)
+    { return bfloat16x16{ fyx::simd::min(fyx::simd::max(input, minval), maxval) }; }
 #endif
 
-    uint8x16 abs(uint8x16 input) { return input; }
-    uint16x8 abs(uint16x8 input) { return input; }
-    uint32x4 abs(uint32x4 input) { return input; }
-    uint64x2 abs(uint64x2 input) { return input; }
-    uint8x32 abs(uint8x32 input) { return input; }
-    uint16x16 abs(uint16x16 input) { return input; }
-    uint32x8 abs(uint32x8 input) { return input; }
-    uint64x4 abs(uint64x4 input) { return input; }
+    FOYE_SIMD_ERROR_WHEN_CALLED("No one needs the absolute value of an unsigned integer") uint8x16 abs(uint8x16 input) { return input; }
+    FOYE_SIMD_ERROR_WHEN_CALLED("No one needs the absolute value of an unsigned integer") uint16x8 abs(uint16x8 input) { return input; }
+    FOYE_SIMD_ERROR_WHEN_CALLED("No one needs the absolute value of an unsigned integer") uint32x4 abs(uint32x4 input) { return input; }
+    FOYE_SIMD_ERROR_WHEN_CALLED("No one needs the absolute value of an unsigned integer") uint64x2 abs(uint64x2 input) { return input; }
+    FOYE_SIMD_ERROR_WHEN_CALLED("No one needs the absolute value of an unsigned integer") uint8x32 abs(uint8x32 input) { return input; }
+    FOYE_SIMD_ERROR_WHEN_CALLED("No one needs the absolute value of an unsigned integer") uint16x16 abs(uint16x16 input) { return input; }
+    FOYE_SIMD_ERROR_WHEN_CALLED("No one needs the absolute value of an unsigned integer") uint32x8 abs(uint32x8 input) { return input; }
+    FOYE_SIMD_ERROR_WHEN_CALLED("No one needs the absolute value of an unsigned integer") uint64x4 abs(uint64x4 input) { return input; }
 
     sint8x16 abs(sint8x16 input) { return sint8x16{ _mm_abs_epi8(input.data) }; }
     sint16x8 abs(sint16x8 input) { return sint16x8{ _mm_abs_epi16(input.data) }; }
@@ -463,16 +450,16 @@ input_simd_type cmpfunc(input_simd_type lhs, input_simd_type rhs)\
         __m256i vlhs = arg0.data;
         __m256i vrhs = arg1.data;
 
-        __m256 lhs_low = cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(vlhs));
-        __m256 lhs_high = cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(vlhs));
-        __m256 rhs_low = cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(vrhs));
-        __m256 rhs_high = cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(vrhs));
+        __m256 lhs_low = cvt8lane_fp16_to_fp32(detail::split_low(vlhs));
+        __m256 lhs_high = cvt8lane_fp16_to_fp32(detail::split_high(vlhs));
+        __m256 rhs_low = cvt8lane_fp16_to_fp32(detail::split_low(vrhs));
+        __m256 rhs_high = cvt8lane_fp16_to_fp32(detail::split_high(vrhs));
         const __m256 vzero = _mm256_setzero_ps();
         const __m256 vhalf = _mm256_set1_ps(0.5f);
         __m256 res_low = _mm256_fmadd_ps(_mm256_add_ps(lhs_low, rhs_low), vhalf, vzero);
         __m256 res_high = _mm256_fmadd_ps(_mm256_add_ps(lhs_high, rhs_high), vhalf, vzero);
 
-        return float16x16{ FOYE_SIMD_MERGE_i(
+        return float16x16{ detail::merge(
             cvt8lane_fp32_to_fp16(res_low),
             cvt8lane_fp32_to_fp16(res_high)) };
     }
@@ -492,22 +479,298 @@ input_simd_type cmpfunc(input_simd_type lhs, input_simd_type rhs)\
         __m256i vlhs = arg0.data;
         __m256i vrhs = arg1.data;
 
-        __m256 lhs_low = cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(vlhs));
-        __m256 lhs_high = cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(vlhs));
-        __m256 rhs_low = cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(vrhs));
-        __m256 rhs_high = cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(vrhs));
+        __m256 lhs_low = cvt8lane_bf16_to_fp32(detail::split_low(vlhs));
+        __m256 lhs_high = cvt8lane_bf16_to_fp32(detail::split_high(vlhs));
+        __m256 rhs_low = cvt8lane_bf16_to_fp32(detail::split_low(vrhs));
+        __m256 rhs_high = cvt8lane_bf16_to_fp32(detail::split_high(vrhs));
         const __m256 vzero = _mm256_setzero_ps();
         const __m256 vhalf = _mm256_set1_ps(0.5f);
         __m256 res_low = _mm256_fmadd_ps(_mm256_add_ps(lhs_low, rhs_low), vhalf, vzero);
         __m256 res_high = _mm256_fmadd_ps(_mm256_add_ps(lhs_high, rhs_high), vhalf, vzero);
 
-        return bfloat16x16{ FOYE_SIMD_MERGE_i(
+        return bfloat16x16{ detail::merge(
             cvt8lane_fp32_to_bf16(res_low),
             cvt8lane_fp32_to_bf16(res_high)) };
     }
 #endif
 #endif
 }
+
+namespace fyx::simd
+{
+    uint8x16 plus_sat(uint8x16 lhs, uint8x16 rhs) { return uint8x16{ _mm_adds_epu8(lhs.data, rhs.data) }; }
+    uint16x8 plus_sat(uint16x8 lhs, uint16x8 rhs) { return uint16x8{ _mm_adds_epu16(lhs.data, rhs.data) }; }
+    sint8x16 plus_sat(sint8x16 lhs, sint8x16 rhs) { return sint8x16{ _mm_adds_epi8(lhs.data, rhs.data) }; }
+    sint16x8 plus_sat(sint16x8 lhs, sint16x8 rhs) { return sint16x8{ _mm_adds_epi16(lhs.data, rhs.data) }; }
+    uint8x32 plus_sat(uint8x32 lhs, uint8x32 rhs) { return uint8x32{ _mm256_adds_epu8(lhs.data, rhs.data) }; }
+    uint16x16 plus_sat(uint16x16 lhs, uint16x16 rhs) { return uint16x16{ _mm256_adds_epu16(lhs.data, rhs.data) }; }
+    sint8x32 plus_sat(sint8x32 lhs, sint8x32 rhs) { return sint8x32{ _mm256_adds_epi8(lhs.data, rhs.data) }; }
+    sint16x16 plus_sat(sint16x16 lhs, sint16x16 rhs) { return sint16x16{ _mm256_adds_epi16(lhs.data, rhs.data) }; }
+    FOYE_SIMD_ERROR_WHEN_CALLED("No one would need such a feature") uint32x4 plus_sat(uint32x4 lhs, uint32x4 rhs) { return {}; }
+    FOYE_SIMD_ERROR_WHEN_CALLED("No one would need such a feature") uint64x2 plus_sat(uint64x2 lhs, uint64x2 rhs) { return {}; }
+    FOYE_SIMD_ERROR_WHEN_CALLED("No one would need such a feature") sint32x4 plus_sat(sint32x4 lhs, sint32x4 rhs) { return {}; }
+    FOYE_SIMD_ERROR_WHEN_CALLED("No one would need such a feature") sint64x2 plus_sat(sint64x2 lhs, sint64x2 rhs) { return {}; }
+    FOYE_SIMD_ERROR_WHEN_CALLED("No one would need such a feature") uint32x8 plus_sat(uint32x8 lhs, uint32x8 rhs) { return {}; }
+    FOYE_SIMD_ERROR_WHEN_CALLED("No one would need such a feature") uint64x4 plus_sat(uint64x4 lhs, uint64x4 rhs) { return {}; }
+    FOYE_SIMD_ERROR_WHEN_CALLED("No one would need such a feature") sint32x8 plus_sat(sint32x8 lhs, sint32x8 rhs) { return {}; }
+    FOYE_SIMD_ERROR_WHEN_CALLED("No one would need such a feature") sint64x4 plus_sat(sint64x4 lhs, sint64x4 rhs) { return {}; }
+
+    uint8x16 minus_sat(uint8x16 lhs, uint8x16 rhs) { return uint8x16{ _mm_subs_epu8(lhs.data, rhs.data) }; }
+    uint16x8 minus_sat(uint16x8 lhs, uint16x8 rhs) { return uint16x8{ _mm_subs_epu16(lhs.data, rhs.data) }; }
+    sint8x16 minus_sat(sint8x16 lhs, sint8x16 rhs) { return sint8x16{ _mm_subs_epi8(lhs.data, rhs.data) }; }
+    sint16x8 minus_sat(sint16x8 lhs, sint16x8 rhs) { return sint16x8{ _mm_subs_epi16(lhs.data, rhs.data) }; }
+    uint8x32 minus_sat(uint8x32 lhs, uint8x32 rhs) { return uint8x32{ _mm256_subs_epu8(lhs.data, rhs.data) }; }
+    uint16x16 minus_sat(uint16x16 lhs, uint16x16 rhs) { return uint16x16{ _mm256_subs_epu16(lhs.data, rhs.data) }; }
+    sint8x32 minus_sat(sint8x32 lhs, sint8x32 rhs) { return sint8x32{ _mm256_subs_epi8(lhs.data, rhs.data) }; }
+    sint16x16 minus_sat(sint16x16 lhs, sint16x16 rhs) { return sint16x16{ _mm256_subs_epi16(lhs.data, rhs.data) }; }
+    FOYE_SIMD_ERROR_WHEN_CALLED("No one would need such a feature") uint32x4 minus_sat(uint32x4 lhs, uint32x4 rhs) { return {}; }
+    FOYE_SIMD_ERROR_WHEN_CALLED("No one would need such a feature") uint64x2 minus_sat(uint64x2 lhs, uint64x2 rhs) { return {}; }
+    FOYE_SIMD_ERROR_WHEN_CALLED("No one would need such a feature") sint32x4 minus_sat(sint32x4 lhs, sint32x4 rhs) { return {}; }
+    FOYE_SIMD_ERROR_WHEN_CALLED("No one would need such a feature") sint64x2 minus_sat(sint64x2 lhs, sint64x2 rhs) { return {}; }
+    FOYE_SIMD_ERROR_WHEN_CALLED("No one would need such a feature") uint32x8 minus_sat(uint32x8 lhs, uint32x8 rhs) { return {}; }
+    FOYE_SIMD_ERROR_WHEN_CALLED("No one would need such a feature") uint64x4 minus_sat(uint64x4 lhs, uint64x4 rhs) { return {}; }
+    FOYE_SIMD_ERROR_WHEN_CALLED("No one would need such a feature") sint32x8 minus_sat(sint32x8 lhs, sint32x8 rhs) { return {}; }
+    FOYE_SIMD_ERROR_WHEN_CALLED("No one would need such a feature") sint64x4 minus_sat(sint64x4 lhs, sint64x4 rhs) { return {}; }
+
+    sint8x16 sign_transfer(sint8x16 data_source, sint8x16 sign_from) { return sint8x16{ _mm_sign_epi8(data_source.data, sign_from.data) }; }
+    sint16x8 sign_transfer(sint16x8 data_source, sint16x8 sign_from) { return sint16x8{ _mm_sign_epi16(data_source.data, sign_from.data) }; }
+    sint32x4 sign_transfer(sint32x4 data_source, sint32x4 sign_from) { return sint32x4{ _mm_sign_epi32(data_source.data, sign_from.data) }; }
+    sint8x32 sign_transfer(sint8x32 data_source, sint8x32 sign_from) { return sint8x32{ _mm256_sign_epi8(data_source.data, sign_from.data) }; }
+    sint16x16 sign_transfer(sint16x16 data_source, sint16x16 sign_from) { return sint16x16{ _mm256_sign_epi16(data_source.data, sign_from.data) }; }
+    sint32x8 sign_transfer(sint32x8 data_source, sint32x8 sign_from) { return sint32x8{ _mm256_sign_epi32(data_source.data, sign_from.data) }; }
+
+#if defined(_FOYE_SIMD_ENABLE_EMULATED_)
+    sint64x2 sign_transfer(sint64x2 data_source, sint64x2 sign_from)
+    {
+        alignas(16) std::int64_t a_arr[2];
+        alignas(16) std::int64_t b_arr[2];
+        alignas(16) std::int64_t result_arr[2];
+
+        store_aligned(data_source, a_arr);
+        store_aligned(sign_from, b_arr);
+
+        for (int i = 0; i < 2; i++) 
+        {
+            if (b_arr[i] > 0) 
+            {
+                result_arr[i] = a_arr[i];
+            }
+            else if (b_arr[i] == 0) 
+            {
+                result_arr[i] = 0;
+            }
+            else 
+            {
+                result_arr[i] = -a_arr[i];
+            }
+        }
+
+        return load_aligned<sint64x2>(result_arr);
+    }
+
+    sint64x4 sign_transfer(sint64x4 data_source, sint64x4 sign_from)
+    {
+        __m256i a = data_source.data;
+        __m256i b = sign_from.data;
+
+        __m256i zero = _mm256_setzero_si256();
+
+        __m256i gt_zero = _mm256_cmpgt_epi64(b, zero);
+        __m256i eq_zero = _mm256_cmpeq_epi64(b, zero);
+
+        __m256i neg_a = _mm256_sub_epi64(zero, a);
+
+        __m256i result = _mm256_and_si256(gt_zero, a);
+        result = _mm256_or_si256(result, neg_a);
+
+        __m256i lt_zero = _mm256_andnot_si256(
+            _mm256_or_si256(gt_zero, eq_zero), _mm256_set1_epi64x(-1LL));
+
+        result = _mm256_and_si256(result, _mm256_or_si256(gt_zero, lt_zero));
+        result = _mm256_andnot_si256(eq_zero, result);
+
+        return sint64x4{ result };
+    }
+#endif
+
+    int bitwise_test_zero(uint8x16 lhs, uint8x16 rhs) { return  _mm_testz_si128(lhs.data, rhs.data) ; }
+    int bitwise_test_zero(uint16x8 lhs, uint16x8 rhs) { return  _mm_testz_si128(lhs.data, rhs.data) ; }
+    int bitwise_test_zero(uint32x4 lhs, uint32x4 rhs) { return  _mm_testz_si128(lhs.data, rhs.data) ; }
+    int bitwise_test_zero(uint64x2 lhs, uint64x2 rhs) { return  _mm_testz_si128(lhs.data, rhs.data) ; }
+    int bitwise_test_zero(sint8x16 lhs, sint8x16 rhs) { return  _mm_testz_si128(lhs.data, rhs.data) ; }
+    int bitwise_test_zero(sint16x8 lhs, sint16x8 rhs) { return  _mm_testz_si128(lhs.data, rhs.data) ; }
+    int bitwise_test_zero(sint32x4 lhs, sint32x4 rhs) { return  _mm_testz_si128(lhs.data, rhs.data) ; }
+    int bitwise_test_zero(sint64x2 lhs, sint64x2 rhs) { return  _mm_testz_si128(lhs.data, rhs.data) ; }
+    int bitwise_test_zero(uint8x32 lhs, uint8x32 rhs) { return  _mm256_testz_si256(lhs.data, rhs.data) ; }
+    int bitwise_test_zero(uint16x16 lhs, uint16x16 rhs) { return  _mm256_testz_si256(lhs.data, rhs.data) ; }
+    int bitwise_test_zero(uint32x8 lhs, uint32x8 rhs) { return  _mm256_testz_si256(lhs.data, rhs.data) ; }
+    int bitwise_test_zero(uint64x4 lhs, uint64x4 rhs) { return  _mm256_testz_si256(lhs.data, rhs.data) ; }
+    int bitwise_test_zero(sint8x32 lhs, sint8x32 rhs) { return  _mm256_testz_si256(lhs.data, rhs.data) ; }
+    int bitwise_test_zero(sint16x16 lhs, sint16x16 rhs) { return  _mm256_testz_si256(lhs.data, rhs.data) ; }
+    int bitwise_test_zero(sint32x8 lhs, sint32x8 rhs) { return  _mm256_testz_si256(lhs.data, rhs.data) ; }
+    int bitwise_test_zero(sint64x4 lhs, sint64x4 rhs) { return  _mm256_testz_si256(lhs.data, rhs.data) ; }
+    int bitwise_test_zero(float32x8 lhs, float32x8 rhs) { return  _mm256_testz_ps(lhs.data, rhs.data) ; }
+    int bitwise_test_zero(float32x4 lhs, float32x4 rhs) { return  _mm_testz_ps(lhs.data, rhs.data) ; }
+    int bitwise_test_zero(float64x4 lhs, float64x4 rhs) { return  _mm256_testz_pd(lhs.data, rhs.data) ; }
+    int bitwise_test_zero(float64x2 lhs, float64x2 rhs) { return  _mm_testz_pd(lhs.data, rhs.data) ; }
+
+    int bitwise_test_not_zero(uint8x16 lhs, uint8x16 rhs) { return  _mm_testnzc_si128(lhs.data, rhs.data) ; }
+    int bitwise_test_not_zero(uint16x8 lhs, uint16x8 rhs) { return  _mm_testnzc_si128(lhs.data, rhs.data) ; }
+    int bitwise_test_not_zero(uint32x4 lhs, uint32x4 rhs) { return  _mm_testnzc_si128(lhs.data, rhs.data) ; }
+    int bitwise_test_not_zero(uint64x2 lhs, uint64x2 rhs) { return  _mm_testnzc_si128(lhs.data, rhs.data) ; }
+    int bitwise_test_not_zero(sint8x16 lhs, sint8x16 rhs) { return  _mm_testnzc_si128(lhs.data, rhs.data) ; }
+    int bitwise_test_not_zero(sint16x8 lhs, sint16x8 rhs) { return  _mm_testnzc_si128(lhs.data, rhs.data) ; }
+    int bitwise_test_not_zero(sint32x4 lhs, sint32x4 rhs) { return  _mm_testnzc_si128(lhs.data, rhs.data) ; }
+    int bitwise_test_not_zero(sint64x2 lhs, sint64x2 rhs) { return  _mm_testnzc_si128(lhs.data, rhs.data) ; }
+    int bitwise_test_not_zero(uint8x32 lhs, uint8x32 rhs) { return  _mm256_testnzc_si256(lhs.data, rhs.data) ; }
+    int bitwise_test_not_zero(uint16x16 lhs, uint16x16 rhs) { return  _mm256_testnzc_si256(lhs.data, rhs.data) ; }
+    int bitwise_test_not_zero(uint32x8 lhs, uint32x8 rhs) { return  _mm256_testnzc_si256(lhs.data, rhs.data) ; }
+    int bitwise_test_not_zero(uint64x4 lhs, uint64x4 rhs) { return  _mm256_testnzc_si256(lhs.data, rhs.data) ; }
+    int bitwise_test_not_zero(sint8x32 lhs, sint8x32 rhs) { return  _mm256_testnzc_si256(lhs.data, rhs.data) ; }
+    int bitwise_test_not_zero(sint16x16 lhs, sint16x16 rhs) { return  _mm256_testnzc_si256(lhs.data, rhs.data) ; }
+    int bitwise_test_not_zero(sint32x8 lhs, sint32x8 rhs) { return  _mm256_testnzc_si256(lhs.data, rhs.data) ; }
+    int bitwise_test_not_zero(sint64x4 lhs, sint64x4 rhs) { return  _mm256_testnzc_si256(lhs.data, rhs.data) ; }
+    int bitwise_test_not_zero(float32x8 lhs, float32x8 rhs) { return  _mm256_testnzc_ps(lhs.data, rhs.data) ; }
+    int bitwise_test_not_zero(float32x4 lhs, float32x4 rhs) { return  _mm_testnzc_ps(lhs.data, rhs.data) ; }
+    int bitwise_test_not_zero(float64x4 lhs, float64x4 rhs) { return  _mm256_testnzc_pd(lhs.data, rhs.data) ; }
+    int bitwise_test_not_zero(float64x2 lhs, float64x2 rhs) { return  _mm_testnzc_pd(lhs.data, rhs.data) ; }
+
+    int bitwise_test_check(uint8x16 lhs, uint8x16 rhs) { return  _mm_testc_si128(lhs.data, rhs.data) ; }
+    int bitwise_test_check(uint16x8 lhs, uint16x8 rhs) { return  _mm_testc_si128(lhs.data, rhs.data) ; }
+    int bitwise_test_check(uint32x4 lhs, uint32x4 rhs) { return  _mm_testc_si128(lhs.data, rhs.data) ; }
+    int bitwise_test_check(uint64x2 lhs, uint64x2 rhs) { return  _mm_testc_si128(lhs.data, rhs.data) ; }
+    int bitwise_test_check(sint8x16 lhs, sint8x16 rhs) { return  _mm_testc_si128(lhs.data, rhs.data) ; }
+    int bitwise_test_check(sint16x8 lhs, sint16x8 rhs) { return  _mm_testc_si128(lhs.data, rhs.data) ; }
+    int bitwise_test_check(sint32x4 lhs, sint32x4 rhs) { return  _mm_testc_si128(lhs.data, rhs.data) ; }
+    int bitwise_test_check(sint64x2 lhs, sint64x2 rhs) { return  _mm_testc_si128(lhs.data, rhs.data) ; }
+    int bitwise_test_check(uint8x32 lhs, uint8x32 rhs) { return  _mm256_testc_si256(lhs.data, rhs.data) ; }
+    int bitwise_test_check(uint16x16 lhs, uint16x16 rhs) { return  _mm256_testc_si256(lhs.data, rhs.data) ; }
+    int bitwise_test_check(uint32x8 lhs, uint32x8 rhs) { return  _mm256_testc_si256(lhs.data, rhs.data) ; }
+    int bitwise_test_check(uint64x4 lhs, uint64x4 rhs) { return  _mm256_testc_si256(lhs.data, rhs.data) ; }
+    int bitwise_test_check(sint8x32 lhs, sint8x32 rhs) { return  _mm256_testc_si256(lhs.data, rhs.data) ; }
+    int bitwise_test_check(sint16x16 lhs, sint16x16 rhs) { return  _mm256_testc_si256(lhs.data, rhs.data) ; }
+    int bitwise_test_check(sint32x8 lhs, sint32x8 rhs) { return  _mm256_testc_si256(lhs.data, rhs.data) ; }
+    int bitwise_test_check(sint64x4 lhs, sint64x4 rhs) { return  _mm256_testc_si256(lhs.data, rhs.data) ; }
+    int bitwise_test_check(float32x8 lhs, float32x8 rhs) { return  _mm256_testc_ps(lhs.data, rhs.data) ; }
+    int bitwise_test_check(float32x4 lhs, float32x4 rhs) { return  _mm_testc_ps(lhs.data, rhs.data) ; }
+    int bitwise_test_check(float64x4 lhs, float64x4 rhs) { return  _mm256_testc_pd(lhs.data, rhs.data) ; }
+    int bitwise_test_check(float64x2 lhs, float64x2 rhs) { return  _mm_testc_pd(lhs.data, rhs.data) ; }
+
+
+#if defined(_FOYE_SIMD_HAS_FP16_)
+    int bitwise_test_zero(float16x8 lhs, float16x8 rhs) { return  _mm_testz_si128(lhs.data, rhs.data); }
+    int bitwise_test_zero(float16x16 lhs, float16x16 rhs) { return  _mm256_testz_si256(lhs.data, rhs.data); }
+    int bitwise_test_not_zero(float16x8 lhs, float16x8 rhs) { return  _mm_testnzc_si128(lhs.data, rhs.data); }
+    int bitwise_test_not_zero(float16x16 lhs, float16x16 rhs) { return  _mm256_testnzc_si256(lhs.data, rhs.data); }
+    int bitwise_test_check(float16x8 lhs, float16x8 rhs) { return  _mm_testc_si128(lhs.data, rhs.data); }
+    int bitwise_test_check(float16x16 lhs, float16x16 rhs) { return  _mm256_testc_si256(lhs.data, rhs.data); }
+#endif
+
+#if defined(_FOYE_SIMD_HAS_BF16_)
+    int bitwise_test_zero(bfloat16x8 lhs, bfloat16x8 rhs) { return  _mm_testz_si128(lhs.data, rhs.data); }
+    int bitwise_test_zero(bfloat16x16 lhs, bfloat16x16 rhs) { return  _mm256_testz_si256(lhs.data, rhs.data); }
+    int bitwise_test_not_zero(bfloat16x8 lhs, bfloat16x8 rhs) { return  _mm_testnzc_si128(lhs.data, rhs.data); }
+    int bitwise_test_not_zero(bfloat16x16 lhs, bfloat16x16 rhs) { return  _mm256_testnzc_si256(lhs.data, rhs.data); }
+    int bitwise_test_check(bfloat16x8 lhs, bfloat16x8 rhs) { return  _mm_testc_si128(lhs.data, rhs.data); }
+    int bitwise_test_check(bfloat16x16 lhs, bfloat16x16 rhs) { return  _mm256_testc_si256(lhs.data, rhs.data); }
+#endif
+}
+
+namespace fyx::simd
+{
+    template<typename simd_type>
+    requires(is_basic_simd_v<simd_type>)
+    simd_type& operator ++ (simd_type& input)
+    {
+        input = plus(input, load_brocast<simd_type>(1));
+        return input;
+    }
+
+    template<typename simd_type>
+    requires(is_basic_simd_v<simd_type>)
+    simd_type operator ++ (simd_type& input, int)
+    {
+        simd_type temp = input;
+        input = plus(input, load_brocast<simd_type>(1));
+        return temp;
+    }
+
+    template<typename simd_type>
+    requires(is_basic_simd_v<simd_type>)
+    simd_type& operator -- (simd_type& input)
+    {
+        input = minus(input, load_brocast<simd_type>(1));
+        return input;
+    }
+
+    template<typename simd_type>
+    requires(is_basic_simd_v<simd_type>)
+    simd_type operator -- (simd_type& input, int)
+    {
+        simd_type temp = input;
+        input = minus(input, load_brocast<simd_type>(1));
+        return temp;
+    }
+
+    template<typename simd_type>
+    requires(is_basic_simd_v<simd_type>)
+    simd_type operator - (simd_type input)
+    {
+        return negate(input);
+    }
+
+    template<typename simd_type>
+    simd_type operator ~ (simd_type input)
+    {
+        return bitwise_NOT(input);
+    }
+
+#define _FOYE_SIMD_OPERATOR_DEFINE_(intrinsic_function, operator_symbol) \
+template<typename simd_type> requires(is_basic_simd_v<simd_type>) \
+simd_type operator operator_symbol (simd_type lhs, simd_type rhs)\
+{\
+    return intrinsic_function(lhs, rhs);\
+}\
+template<typename simd_type> requires(is_basic_simd_v<simd_type>)\
+simd_type& operator operator_symbol##= (simd_type& lhs, simd_type rhs)\
+{\
+    lhs = intrinsic_function(lhs, rhs);\
+    return lhs;\
+}\
+template<typename simd_type, typename rhs_type>\
+    requires(is_basic_simd_v<simd_type>\
+&& std::is_convertible_v<typename simd_type::scalar_t, rhs_type>)\
+simd_type operator operator_symbol (simd_type lhs, rhs_type rhs)\
+{\
+    return intrinsic_function(lhs, load_brocast<simd_type>(rhs));\
+}\
+template<typename simd_type, typename rhs_type>\
+    requires(is_basic_simd_v<simd_type>\
+&& std::is_convertible_v<typename simd_type::scalar_t, rhs_type>)\
+simd_type& operator operator_symbol##= (simd_type& lhs, rhs_type rhs)\
+{\
+    lhs = intrinsic_function(lhs, load_brocast<simd_type>(rhs));\
+    return lhs;\
+}
+
+    _FOYE_SIMD_OPERATOR_DEFINE_(plus, +)
+    _FOYE_SIMD_OPERATOR_DEFINE_(minus, -)
+    _FOYE_SIMD_OPERATOR_DEFINE_(divide, /)
+    _FOYE_SIMD_OPERATOR_DEFINE_(multiplies, *)
+
+    _FOYE_SIMD_OPERATOR_DEFINE_(bitwise_AND, &)
+    _FOYE_SIMD_OPERATOR_DEFINE_(bitwise_OR, |)
+    _FOYE_SIMD_OPERATOR_DEFINE_(bitwise_XOR, ^)
+
+    _FOYE_SIMD_OPERATOR_DEFINE_(shift_left, <<)
+    _FOYE_SIMD_OPERATOR_DEFINE_(shift_right, >>)
+
+        _FOYE_SIMD_OPERATOR_DEFINE_(remainder, %)
+
+#undef _FOYE_SIMD_OPERATOR_DEFINE_
+}
+
+
 
 
 #undef DEF_NOTSUPPORTED_IMPLEMENT
