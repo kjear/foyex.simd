@@ -70,6 +70,12 @@ namespace fyx::simd
     mask_from_simd_t<float32x8> not_nan(float32x8 input) { return mask_from_simd_t<float32x8>(_mm256_cmp_ps(input.data, input.data, _CMP_ORD_Q)); }
     mask_from_simd_t<float64x4> not_nan(float64x4 input) { return mask_from_simd_t<float64x4>(_mm256_cmp_pd(input.data, input.data, _CMP_ORD_Q)); }
 
+    mask_from_simd_t<float32x4> is_nan(float32x4 input) { return mask_from_simd_t<float32x4>(_mm_cmpneq_ps(input.data, input.data)); }
+    mask_from_simd_t<float64x2> is_nan(float64x2 input) { return mask_from_simd_t<float64x2>(_mm_cmpneq_pd(input.data, input.data)); }
+    mask_from_simd_t<float32x8> is_nan(float32x8 input) { return mask_from_simd_t<float32x8>(_mm256_cmp_ps(input.data, input.data, _CMP_NEQ_UQ)); }
+    mask_from_simd_t<float64x4> is_nan(float64x4 input) { return mask_from_simd_t<float64x4>(_mm256_cmp_pd(input.data, input.data, _CMP_NEQ_UQ)); }
+
+
 #if defined(_FOYE_SIMD_HAS_FP16_)
     mask_from_simd_t<float16x8> not_nan(float16x8 input)
     {
@@ -164,7 +170,39 @@ namespace fyx::simd
 
 
 
+    float32x4 interleave_subadd(float32x4 lhs, float32x4 rhs) { return float32x4{ _mm_addsub_ps(lhs.data, rhs.data) }; }
+    float32x8 interleave_subadd(float32x8 lhs, float32x8 rhs) { return float32x8{ _mm256_addsub_ps(lhs.data, rhs.data) }; }
+    float64x2 interleave_subadd(float64x2 lhs, float64x2 rhs) { return float64x2{ _mm_addsub_pd(lhs.data, rhs.data) }; }
+    float64x4 interleave_subadd(float64x4 lhs, float64x4 rhs) { return float64x4{ _mm256_addsub_pd(lhs.data, rhs.data) }; }
 
+#if defined(_FOYE_SIMD_HAS_FP16_)
+    float16x8 interleave_subadd(float16x8 lhs, float16x8 rhs)
+    {
+        return narrowing<float16x8>(
+            interleave_subadd(expand<float32x8>(lhs), expand<float32x8>(rhs)));
+    }
+
+    float16x16 interleave_subadd(float16x16 lhs, float16x16 rhs)
+    {
+        float32x8 res_low = interleave_subadd(expand<float32x8>(lhs.low_part()), expand<float32x8>(rhs.low_part()));
+        float32x8 res_high = interleave_subadd(expand<float32x8>(lhs.high_part()), expand<float32x8>(rhs.high_part()));
+        return merge(narrowing<float16x8>(res_low), narrowing<float16x8>(res_high));
+    }
+#endif
+#if defined(_FOYE_SIMD_HAS_FP16_)
+    bfloat16x8 interleave_subadd(bfloat16x8 lhs, bfloat16x8 rhs)
+    {
+        return narrowing<bfloat16x8>(
+            interleave_subadd(expand<float32x8>(lhs), expand<float32x8>(rhs)));
+    }
+
+    bfloat16x16 interleave_subadd(bfloat16x16 lhs, bfloat16x16 rhs)
+    {
+        float32x8 res_low = interleave_subadd(expand<float32x8>(lhs.low_part()), expand<float32x8>(rhs.low_part()));
+        float32x8 res_high = interleave_subadd(expand<float32x8>(lhs.high_part()), expand<float32x8>(rhs.high_part()));
+        return merge(narrowing<bfloat16x8>(res_low), narrowing<bfloat16x8>(res_high));
+    }
+#endif
 
 
     mask_from_simd_t<float32x4> where_close(float32x4 lhs, float32x4 rhs, float32x4 relative_tolerance, float32x4 absolute_tolerance)
@@ -500,14 +538,14 @@ namespace fyx::simd
     float16x16 fmod(float16x16 a, float16x16 b)
     {
         float32x8 res32_low = fyx::simd::fmod(
-            float32x8{ cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(a.data)) },
-            float32x8{ cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(b.data)) });
+            float32x8{ cvt8lane_fp16_to_fp32(detail::split_low(a.data)) },
+            float32x8{ cvt8lane_fp16_to_fp32(detail::split_low(b.data)) });
 
         float32x8 res32_high = fyx::simd::fmod(
-            float32x8{ cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(a.data)) },
-            float32x8{ cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(b.data)) });
+            float32x8{ cvt8lane_fp16_to_fp32(detail::split_high(a.data)) },
+            float32x8{ cvt8lane_fp16_to_fp32(detail::split_high(b.data)) });
 
-        return float16x16{ FOYE_SIMD_MERGE_i(
+        return float16x16{ detail::merge(
             cvt8lane_fp32_to_fp16(res32_low.data),
             cvt8lane_fp32_to_fp16(res32_high.data)) };
     }
@@ -523,14 +561,14 @@ namespace fyx::simd
     bfloat16x16 fmod(bfloat16x16 a, bfloat16x16 b)
     {
         float32x8 res32_low = fyx::simd::fmod(
-            float32x8{ cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(a.data)) },
-            float32x8{ cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(b.data)) });
+            float32x8{ cvt8lane_bf16_to_fp32(detail::split_low(a.data)) },
+            float32x8{ cvt8lane_bf16_to_fp32(detail::split_low(b.data)) });
 
         float32x8 res32_high = fyx::simd::fmod(
-            float32x8{ cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(a.data)) },
-            float32x8{ cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(b.data)) });
+            float32x8{ cvt8lane_bf16_to_fp32(detail::split_high(a.data)) },
+            float32x8{ cvt8lane_bf16_to_fp32(detail::split_high(b.data)) });
 
-        return bfloat16x16{ FOYE_SIMD_MERGE_i(
+        return bfloat16x16{ detail::merge(
             cvt8lane_fp32_to_bf16(res32_low.data),
             cvt8lane_fp32_to_bf16(res32_high.data)) };
     }
@@ -551,15 +589,15 @@ namespace fyx::simd
 
     float16x16 fma(float16x16 mul_left, float16x16 mul_right, float16x16 add_right)
     {
-        return float16x16{ FOYE_SIMD_MERGE_i(
+        return float16x16{ detail::merge(
             cvt8lane_fp32_to_fp16(_mm256_fmadd_ps(
-                cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(mul_left.data)),
-                cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(mul_right.data)),
-                cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(add_right.data)))),
+                cvt8lane_fp16_to_fp32(detail::split_low(mul_left.data)),
+                cvt8lane_fp16_to_fp32(detail::split_low(mul_right.data)),
+                cvt8lane_fp16_to_fp32(detail::split_low(add_right.data)))),
             cvt8lane_fp32_to_fp16(_mm256_fmadd_ps(
-                cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(mul_left.data)),
-                cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(mul_right.data)),
-                cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(add_right.data))))) };
+                cvt8lane_fp16_to_fp32(detail::split_high(mul_left.data)),
+                cvt8lane_fp16_to_fp32(detail::split_high(mul_right.data)),
+                cvt8lane_fp16_to_fp32(detail::split_high(add_right.data))))) };
     }
 #endif
 #if defined(_FOYE_SIMD_HAS_BF16_)
@@ -572,15 +610,15 @@ namespace fyx::simd
 
     bfloat16x16 fma(bfloat16x16 mul_left, bfloat16x16 mul_right, bfloat16x16 add_right)
     {
-        return bfloat16x16{ FOYE_SIMD_MERGE_i(
+        return bfloat16x16{ detail::merge(
             cvt8lane_fp32_to_bf16(_mm256_fmadd_ps(
-                cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(mul_left.data)),
-                cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(mul_right.data)),
-                cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(add_right.data)))),
+                cvt8lane_bf16_to_fp32(detail::split_low(mul_left.data)),
+                cvt8lane_bf16_to_fp32(detail::split_low(mul_right.data)),
+                cvt8lane_bf16_to_fp32(detail::split_low(add_right.data)))),
             cvt8lane_fp32_to_bf16(_mm256_fmadd_ps(
-                cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(mul_left.data)),
-                cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(mul_right.data)),
-                cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(add_right.data))))) };
+                cvt8lane_bf16_to_fp32(detail::split_high(mul_left.data)),
+                cvt8lane_bf16_to_fp32(detail::split_high(mul_right.data)),
+                cvt8lane_bf16_to_fp32(detail::split_high(add_right.data))))) };
     }
 #endif
 
@@ -599,15 +637,15 @@ namespace fyx::simd
 
     float16x16 fms(float16x16 mul_left, float16x16 mul_right, float16x16 sub_right)
     {
-        return float16x16{ FOYE_SIMD_MERGE_i(
+        return float16x16{ detail::merge(
             cvt8lane_fp32_to_fp16(_mm256_fmsub_ps(
-                cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(mul_left.data)),
-                cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(mul_right.data)),
-                cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(sub_right.data)))),
+                cvt8lane_fp16_to_fp32(detail::split_low(mul_left.data)),
+                cvt8lane_fp16_to_fp32(detail::split_low(mul_right.data)),
+                cvt8lane_fp16_to_fp32(detail::split_low(sub_right.data)))),
             cvt8lane_fp32_to_fp16(_mm256_fmsub_ps(
-                cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(mul_left.data)),
-                cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(mul_right.data)),
-                cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(sub_right.data))))) };
+                cvt8lane_fp16_to_fp32(detail::split_high(mul_left.data)),
+                cvt8lane_fp16_to_fp32(detail::split_high(mul_right.data)),
+                cvt8lane_fp16_to_fp32(detail::split_high(sub_right.data))))) };
     }
 #endif
 #if defined(_FOYE_SIMD_HAS_BF16_)
@@ -620,15 +658,15 @@ namespace fyx::simd
 
     bfloat16x16 fms(bfloat16x16 mul_left, bfloat16x16 mul_right, bfloat16x16 sub_right)
     {
-        return bfloat16x16{ FOYE_SIMD_MERGE_i(
+        return bfloat16x16{ detail::merge(
             cvt8lane_fp32_to_bf16(_mm256_fmsub_ps(
-                cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(mul_left.data)),
-                cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(mul_right.data)),
-                cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(sub_right.data)))),
+                cvt8lane_bf16_to_fp32(detail::split_low(mul_left.data)),
+                cvt8lane_bf16_to_fp32(detail::split_low(mul_right.data)),
+                cvt8lane_bf16_to_fp32(detail::split_low(sub_right.data)))),
             cvt8lane_fp32_to_bf16(_mm256_fmsub_ps(
-                cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(mul_left.data)),
-                cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(mul_right.data)),
-                cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(sub_right.data))))) };
+                cvt8lane_bf16_to_fp32(detail::split_high(mul_left.data)),
+                cvt8lane_bf16_to_fp32(detail::split_high(mul_right.data)),
+                cvt8lane_bf16_to_fp32(detail::split_high(sub_right.data))))) };
     }
 #endif
 
@@ -647,15 +685,15 @@ namespace fyx::simd
 
     float16x16 fnma(float16x16 mul_left, float16x16 mul_right, float16x16 add_right)
     {
-        return float16x16{ FOYE_SIMD_MERGE_i(
+        return float16x16{ detail::merge(
             cvt8lane_fp32_to_fp16(_mm256_fnmadd_ps(
-                cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(mul_left.data)),
-                cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(mul_right.data)),
-                cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(add_right.data)))),
+                cvt8lane_fp16_to_fp32(detail::split_low(mul_left.data)),
+                cvt8lane_fp16_to_fp32(detail::split_low(mul_right.data)),
+                cvt8lane_fp16_to_fp32(detail::split_low(add_right.data)))),
             cvt8lane_fp32_to_fp16(_mm256_fnmadd_ps(
-                cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(mul_left.data)),
-                cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(mul_right.data)),
-                cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(add_right.data))))) };
+                cvt8lane_fp16_to_fp32(detail::split_high(mul_left.data)),
+                cvt8lane_fp16_to_fp32(detail::split_high(mul_right.data)),
+                cvt8lane_fp16_to_fp32(detail::split_high(add_right.data))))) };
     }
 #endif
 #if defined(_FOYE_SIMD_HAS_BF16_)
@@ -668,15 +706,15 @@ namespace fyx::simd
 
     bfloat16x16 fnma(bfloat16x16 mul_left, bfloat16x16 mul_right, bfloat16x16 add_right)
     {
-        return bfloat16x16{ FOYE_SIMD_MERGE_i(
+        return bfloat16x16{ detail::merge(
             cvt8lane_fp32_to_bf16(_mm256_fnmadd_ps(
-                cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(mul_left.data)),
-                cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(mul_right.data)),
-                cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(add_right.data)))),
+                cvt8lane_bf16_to_fp32(detail::split_low(mul_left.data)),
+                cvt8lane_bf16_to_fp32(detail::split_low(mul_right.data)),
+                cvt8lane_bf16_to_fp32(detail::split_low(add_right.data)))),
             cvt8lane_fp32_to_bf16(_mm256_fnmadd_ps(
-                cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(mul_left.data)),
-                cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(mul_right.data)),
-                cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(add_right.data))))) };
+                cvt8lane_bf16_to_fp32(detail::split_high(mul_left.data)),
+                cvt8lane_bf16_to_fp32(detail::split_high(mul_right.data)),
+                cvt8lane_bf16_to_fp32(detail::split_high(add_right.data))))) };
     }
 #endif
 
@@ -695,15 +733,15 @@ namespace fyx::simd
 
     float16x16 fnms(float16x16 mul_left, float16x16 mul_right, float16x16 sub_right)
     {
-        return float16x16{ FOYE_SIMD_MERGE_i(
+        return float16x16{ detail::merge(
             cvt8lane_fp32_to_fp16(_mm256_fnmsub_ps(
-                cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(mul_left.data)),
-                cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(mul_right.data)),
-                cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(sub_right.data)))),
+                cvt8lane_fp16_to_fp32(detail::split_low(mul_left.data)),
+                cvt8lane_fp16_to_fp32(detail::split_low(mul_right.data)),
+                cvt8lane_fp16_to_fp32(detail::split_low(sub_right.data)))),
             cvt8lane_fp32_to_fp16(_mm256_fnmsub_ps(
-                cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(mul_left.data)),
-                cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(mul_right.data)),
-                cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(sub_right.data))))) };
+                cvt8lane_fp16_to_fp32(detail::split_high(mul_left.data)),
+                cvt8lane_fp16_to_fp32(detail::split_high(mul_right.data)),
+                cvt8lane_fp16_to_fp32(detail::split_high(sub_right.data))))) };
     }
 #endif
 #if defined(_FOYE_SIMD_HAS_BF16_)
@@ -716,15 +754,15 @@ namespace fyx::simd
 
     bfloat16x16 fnms(bfloat16x16 mul_left, bfloat16x16 mul_right, bfloat16x16 sub_right)
     {
-        return bfloat16x16{ FOYE_SIMD_MERGE_i(
+        return bfloat16x16{ detail::merge(
             cvt8lane_fp32_to_bf16(_mm256_fnmsub_ps(
-                cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(mul_left.data)),
-                cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(mul_right.data)),
-                cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(sub_right.data)))),
+                cvt8lane_bf16_to_fp32(detail::split_low(mul_left.data)),
+                cvt8lane_bf16_to_fp32(detail::split_low(mul_right.data)),
+                cvt8lane_bf16_to_fp32(detail::split_low(sub_right.data)))),
             cvt8lane_fp32_to_bf16(_mm256_fnmsub_ps(
-                cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(mul_left.data)),
-                cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(mul_right.data)),
-                cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(sub_right.data))))) };
+                cvt8lane_bf16_to_fp32(detail::split_high(mul_left.data)),
+                cvt8lane_bf16_to_fp32(detail::split_high(mul_right.data)),
+                cvt8lane_bf16_to_fp32(detail::split_high(sub_right.data))))) };
     }
 #endif
 
@@ -743,15 +781,15 @@ namespace fyx::simd
 
     float16x16 fmaddsub(float16x16 mul_left, float16x16 mul_right, float16x16 rhs)
     {
-        return float16x16{ FOYE_SIMD_MERGE_i(
+        return float16x16{ detail::merge(
             cvt8lane_fp32_to_fp16(_mm256_fmaddsub_ps(
-                cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(mul_left.data)),
-                cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(mul_right.data)),
-                cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(rhs.data)))),
+                cvt8lane_fp16_to_fp32(detail::split_low(mul_left.data)),
+                cvt8lane_fp16_to_fp32(detail::split_low(mul_right.data)),
+                cvt8lane_fp16_to_fp32(detail::split_low(rhs.data)))),
             cvt8lane_fp32_to_fp16(_mm256_fmaddsub_ps(
-                cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(mul_left.data)),
-                cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(mul_right.data)),
-                cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(rhs.data))))) };
+                cvt8lane_fp16_to_fp32(detail::split_high(mul_left.data)),
+                cvt8lane_fp16_to_fp32(detail::split_high(mul_right.data)),
+                cvt8lane_fp16_to_fp32(detail::split_high(rhs.data))))) };
     }
 #endif
 #if defined(_FOYE_SIMD_HAS_BF16_)
@@ -764,15 +802,15 @@ namespace fyx::simd
 
     bfloat16x16 fmaddsub(bfloat16x16 mul_left, bfloat16x16 mul_right, bfloat16x16 rhs)
     {
-        return bfloat16x16{ FOYE_SIMD_MERGE_i(
+        return bfloat16x16{ detail::merge(
             cvt8lane_fp32_to_bf16(_mm256_fmaddsub_ps(
-                cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(mul_left.data)),
-                cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(mul_right.data)),
-                cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(rhs.data)))),
+                cvt8lane_bf16_to_fp32(detail::split_low(mul_left.data)),
+                cvt8lane_bf16_to_fp32(detail::split_low(mul_right.data)),
+                cvt8lane_bf16_to_fp32(detail::split_low(rhs.data)))),
             cvt8lane_fp32_to_bf16(_mm256_fmaddsub_ps(
-                cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(mul_left.data)),
-                cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(mul_right.data)),
-                cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(rhs.data))))) };
+                cvt8lane_bf16_to_fp32(detail::split_high(mul_left.data)),
+                cvt8lane_bf16_to_fp32(detail::split_high(mul_right.data)),
+                cvt8lane_bf16_to_fp32(detail::split_high(rhs.data))))) };
     }
 #endif
 
@@ -788,9 +826,9 @@ namespace fyx::simd
     }
     float16x16 rsqrt(float16x16 input)
     {
-        return float16x16{ FOYE_SIMD_MERGE_i(
-            cvt8lane_fp32_to_fp16(_mm256_rsqrt_ps(cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(input.data)))),
-            cvt8lane_fp32_to_fp16(_mm256_rsqrt_ps(cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(input.data))))) };
+        return float16x16{ detail::merge(
+            cvt8lane_fp32_to_fp16(_mm256_rsqrt_ps(cvt8lane_fp16_to_fp32(detail::split_low(input.data)))),
+            cvt8lane_fp32_to_fp16(_mm256_rsqrt_ps(cvt8lane_fp16_to_fp32(detail::split_high(input.data))))) };
     }
 #endif
 #if defined(_FOYE_SIMD_HAS_BF16_)
@@ -801,9 +839,9 @@ namespace fyx::simd
     }
     bfloat16x16 rsqrt(bfloat16x16 input)
     {
-        return bfloat16x16{ FOYE_SIMD_MERGE_i(
-            cvt8lane_fp32_to_bf16(_mm256_rsqrt_ps(cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(input.data)))),
-            cvt8lane_fp32_to_bf16(_mm256_rsqrt_ps(cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(input.data))))) };
+        return bfloat16x16{ detail::merge(
+            cvt8lane_fp32_to_bf16(_mm256_rsqrt_ps(cvt8lane_bf16_to_fp32(detail::split_low(input.data)))),
+            cvt8lane_fp32_to_bf16(_mm256_rsqrt_ps(cvt8lane_bf16_to_fp32(detail::split_high(input.data))))) };
     }
 #endif
 
@@ -858,11 +896,11 @@ namespace fyx::simd
     }
     float16x16 rcp(float16x16 input)
     {
-        __m256 vsrc_low = cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(input.data));
-        __m256 vsrc_high = cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(input.data));
+        __m256 vsrc_low = cvt8lane_fp16_to_fp32(detail::split_low(input.data));
+        __m256 vsrc_high = cvt8lane_fp16_to_fp32(detail::split_high(input.data));
         __m128i v_low = cvt8lane_fp32_to_fp16(_mm256_rcp_ps(vsrc_low));
         __m128i v_high = cvt8lane_fp32_to_fp16(_mm256_rcp_ps(vsrc_high));
-        return float16x16{ FOYE_SIMD_MERGE_i(v_low, v_high) };
+        return float16x16{ detail::merge(v_low, v_high) };
     }
 #endif
 #if defined(_FOYE_SIMD_HAS_BF16_)
@@ -874,11 +912,11 @@ namespace fyx::simd
     }
     bfloat16x16 rcp(bfloat16x16 input)
     {
-        __m256 vsrc_low = cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(input.data));
-        __m256 vsrc_high = cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(input.data));
+        __m256 vsrc_low = cvt8lane_bf16_to_fp32(detail::split_low(input.data));
+        __m256 vsrc_high = cvt8lane_bf16_to_fp32(detail::split_high(input.data));
         __m128i v_low = cvt8lane_fp32_to_bf16(_mm256_rcp_ps(vsrc_low));
         __m128i v_high = cvt8lane_fp32_to_bf16(_mm256_rcp_ps(vsrc_high));
-        return bfloat16x16{ FOYE_SIMD_MERGE_i(v_low, v_high) };
+        return bfloat16x16{ detail::merge(v_low, v_high) };
     }
 #endif
 
@@ -895,11 +933,11 @@ namespace fyx::simd
     }
     float16x16 sqrt(float16x16 input)
     {
-        __m256 vsrc_low = cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(input.data));
-        __m256 vsrc_high = cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(input.data));
+        __m256 vsrc_low = cvt8lane_fp16_to_fp32(detail::split_low(input.data));
+        __m256 vsrc_high = cvt8lane_fp16_to_fp32(detail::split_high(input.data));
         __m128i v_low = cvt8lane_fp32_to_fp16(_mm256_sqrt_ps(vsrc_low));
         __m128i v_high = cvt8lane_fp32_to_fp16(_mm256_sqrt_ps(vsrc_high));
-        return float16x16{ FOYE_SIMD_MERGE_i(v_low, v_high) };
+        return float16x16{ detail::merge(v_low, v_high) };
     }
 #endif
 #if defined(_FOYE_SIMD_HAS_BF16_)
@@ -911,11 +949,11 @@ namespace fyx::simd
     }
     bfloat16x16 sqrt(bfloat16x16 input)
     {
-        __m256 vsrc_low = cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(input.data));
-        __m256 vsrc_high = cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(input.data));
+        __m256 vsrc_low = cvt8lane_bf16_to_fp32(detail::split_low(input.data));
+        __m256 vsrc_high = cvt8lane_bf16_to_fp32(detail::split_high(input.data));
         __m128i v_low = cvt8lane_fp32_to_bf16(_mm256_sqrt_ps(vsrc_low));
         __m128i v_high = cvt8lane_fp32_to_bf16(_mm256_sqrt_ps(vsrc_high));
-        return bfloat16x16{ FOYE_SIMD_MERGE_i(v_low, v_high) };
+        return bfloat16x16{ detail::merge(v_low, v_high) };
     }
 #endif
 
@@ -1053,10 +1091,10 @@ namespace fyx::simd
     }
     float16x16 exp(float16x16 input)
     {
-        float32x8 res32_low = fyx::simd::exp(float32x8{ cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(input.data)) });
-        float32x8 res32_high = fyx::simd::exp(float32x8{ cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(input.data)) });
+        float32x8 res32_low = fyx::simd::exp(float32x8{ cvt8lane_fp16_to_fp32(detail::split_low(input.data)) });
+        float32x8 res32_high = fyx::simd::exp(float32x8{ cvt8lane_fp16_to_fp32(detail::split_high(input.data)) });
 
-        return float16x16{ FOYE_SIMD_MERGE_i(
+        return float16x16{ detail::merge(
             cvt8lane_fp32_to_fp16(res32_low.data),
             cvt8lane_fp32_to_fp16(res32_high.data)) };
     }
@@ -1070,10 +1108,10 @@ namespace fyx::simd
     }
     bfloat16x16 exp(bfloat16x16 input)
     {
-        float32x8 res32_low = fyx::simd::exp(float32x8{ cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(input.data)) });
-        float32x8 res32_high = fyx::simd::exp(float32x8{ cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(input.data)) });
+        float32x8 res32_low = fyx::simd::exp(float32x8{ cvt8lane_bf16_to_fp32(detail::split_low(input.data)) });
+        float32x8 res32_high = fyx::simd::exp(float32x8{ cvt8lane_bf16_to_fp32(detail::split_high(input.data)) });
 
-        return bfloat16x16{ FOYE_SIMD_MERGE_i(
+        return bfloat16x16{ detail::merge(
             cvt8lane_fp32_to_bf16(res32_low.data),
             cvt8lane_fp32_to_bf16(res32_high.data)) };
     }
@@ -1105,7 +1143,6 @@ namespace fyx::simd
 
             simd_type ratio2 = fyx::simd::multiplies(ratio, ratio);
             simd_type sqrt_val = fyx::simd::sqrt(fyx::simd::plus(fyx::simd::load_brocast<simd_type>(1.0f), ratio2));
-
             return fyx::simd::multiplies(max_val, sqrt_val);
         }
     }
@@ -1126,14 +1163,14 @@ namespace fyx::simd
     float16x16 hypot(float16x16 a, float16x16 b)
     {
         float32x8 res32_low = fyx::simd::hypot(
-            float32x8{ cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(a.data)) },
-            float32x8{ cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(b.data)) });
+            float32x8{ cvt8lane_fp16_to_fp32(detail::split_low(a.data)) },
+            float32x8{ cvt8lane_fp16_to_fp32(detail::split_low(b.data)) });
 
         float32x8 res32_high = fyx::simd::hypot(
-            float32x8{ cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(a.data)) },
-            float32x8{ cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(b.data)) });
+            float32x8{ cvt8lane_fp16_to_fp32(detail::split_high(a.data)) },
+            float32x8{ cvt8lane_fp16_to_fp32(detail::split_high(b.data)) });
 
-        return float16x16{ FOYE_SIMD_MERGE_i(
+        return float16x16{ detail::merge(
             cvt8lane_fp32_to_fp16(res32_low.data),
             cvt8lane_fp32_to_fp16(res32_high.data)) };
     }
@@ -1149,14 +1186,14 @@ namespace fyx::simd
     bfloat16x16 hypot(bfloat16x16 a, bfloat16x16 b)
     {
         float32x8 res32_low = fyx::simd::hypot(
-            float32x8{ cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(a.data)) },
-            float32x8{ cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(b.data)) });
+            float32x8{ cvt8lane_bf16_to_fp32(detail::split_low(a.data)) },
+            float32x8{ cvt8lane_bf16_to_fp32(detail::split_low(b.data)) });
 
         float32x8 res32_high = fyx::simd::hypot(
-            float32x8{ cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(a.data)) },
-            float32x8{ cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(b.data)) });
+            float32x8{ cvt8lane_bf16_to_fp32(detail::split_high(a.data)) },
+            float32x8{ cvt8lane_bf16_to_fp32(detail::split_high(b.data)) });
 
-        return bfloat16x16{ FOYE_SIMD_MERGE_i(
+        return bfloat16x16{ detail::merge(
             cvt8lane_fp32_to_bf16(res32_low.data),
             cvt8lane_fp32_to_bf16(res32_high.data)) };
     }
@@ -1216,11 +1253,11 @@ namespace fyx::simd
     }
     float16x16 erf(float16x16 input)
     {
-        __m256 vsrc_low = cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(input.data));
-        __m256 vsrc_high = cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(input.data));
+        __m256 vsrc_low = cvt8lane_fp16_to_fp32(detail::split_low(input.data));
+        __m256 vsrc_high = cvt8lane_fp16_to_fp32(detail::split_high(input.data));
         __m128i v_low = cvt8lane_fp32_to_fp16(fyx::simd::erf(float32x8{ vsrc_low }).data);
         __m128i v_high = cvt8lane_fp32_to_fp16(fyx::simd::erf(float32x8{ vsrc_high }).data);
-        return float16x16{ FOYE_SIMD_MERGE_i(v_low, v_high) };
+        return float16x16{ detail::merge(v_low, v_high) };
     }
 #endif
 #if defined(_FOYE_SIMD_HAS_BF16_)
@@ -1232,11 +1269,11 @@ namespace fyx::simd
     }
     bfloat16x16 erf(bfloat16x16 input)
     {
-        __m256 vsrc_low = cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(input.data));
-        __m256 vsrc_high = cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(input.data));
+        __m256 vsrc_low = cvt8lane_bf16_to_fp32(detail::split_low(input.data));
+        __m256 vsrc_high = cvt8lane_bf16_to_fp32(detail::split_high(input.data));
         __m128i v_low = cvt8lane_fp32_to_bf16(fyx::simd::erf(float32x8{ vsrc_low }).data);
         __m128i v_high = cvt8lane_fp32_to_bf16(fyx::simd::erf(float32x8{ vsrc_high }).data);
-        return bfloat16x16{ FOYE_SIMD_MERGE_i(v_low, v_high) };
+        return bfloat16x16{ detail::merge(v_low, v_high) };
     }
 #endif
 
@@ -1272,11 +1309,11 @@ namespace fyx::simd
     }
     float16x16 cdfnorm(float16x16 input)
     {
-        __m256 vsrc_low = cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(input.data));
-        __m256 vsrc_high = cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(input.data));
+        __m256 vsrc_low = cvt8lane_fp16_to_fp32(detail::split_low(input.data));
+        __m256 vsrc_high = cvt8lane_fp16_to_fp32(detail::split_high(input.data));
         __m128i v_low = cvt8lane_fp32_to_fp16(fyx::simd::cdfnorm(float32x8{ vsrc_low }).data);
         __m128i v_high = cvt8lane_fp32_to_fp16(fyx::simd::cdfnorm(float32x8{ vsrc_high }).data);
-        return float16x16{ FOYE_SIMD_MERGE_i(v_low, v_high) };
+        return float16x16{ detail::merge(v_low, v_high) };
     }
 #endif
 #if defined(_FOYE_SIMD_HAS_BF16_)
@@ -1288,11 +1325,11 @@ namespace fyx::simd
     }
     bfloat16x16 cdfnorm(bfloat16x16 input)
     {
-        __m256 vsrc_low = cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(input.data));
-        __m256 vsrc_high = cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(input.data));
+        __m256 vsrc_low = cvt8lane_bf16_to_fp32(detail::split_low(input.data));
+        __m256 vsrc_high = cvt8lane_bf16_to_fp32(detail::split_high(input.data));
         __m128i v_low = cvt8lane_fp32_to_bf16(fyx::simd::cdfnorm(float32x8{ vsrc_low }).data);
         __m128i v_high = cvt8lane_fp32_to_bf16(fyx::simd::cdfnorm(float32x8{ vsrc_high }).data);
-        return bfloat16x16{ FOYE_SIMD_MERGE_i(v_low, v_high) };
+        return bfloat16x16{ detail::merge(v_low, v_high) };
     }
 #endif
 
@@ -1310,82 +1347,82 @@ namespace fyx::simd
             using int_vector_t = fyx::simd::basic_simd<fyx::simd::detail::integral_t<
                 simd_type::scalar_bit_width, true>, simd_type::bit_width>;
 
-            const simd_type one = load_brocast<simd_type>(1.0f);
-            const simd_type sqrt_half = load_brocast<simd_type>(0.707106781186547524f);
-            const simd_type log_q1 = load_brocast<simd_type>(-2.12194440E-4f);
-            const simd_type log_q2 = load_brocast<simd_type>(0.693359375f);
+            const simd_type one = fyx::simd::load_brocast<simd_type>(1.0f);
+            const simd_type sqrt_half = fyx::simd::load_brocast<simd_type>(0.707106781186547524f);
+            const simd_type log_q1 = fyx::simd::load_brocast<simd_type>(-2.12194440E-4f);
+            const simd_type log_q2 = fyx::simd::load_brocast<simd_type>(0.693359375f);
 
             const int_vector_t inv_mantissa_mask = load_brocast<int_vector_t>(
                 typename int_vector_t::scalar_t{ ~0x7f800000 });
 
-            int_vector_t x_bits = reinterpret<int_vector_t>(x);
-            int_vector_t exponent_bits = shift_right<23>(x_bits);
+            int_vector_t x_bits = fyx::simd::reinterpret<int_vector_t>(x);
+            int_vector_t exponent_bits = fyx::simd::shift_right<23>(x_bits);
 
-            x_bits = bitwise_AND(x_bits, inv_mantissa_mask);
-            x_bits = bitwise_OR(x_bits, reinterpret<int_vector_t>(load_brocast<simd_type>(0.5f)));
-            simd_type mantissa = reinterpret<simd_type>(x_bits);
+            x_bits = fyx::simd::bitwise_AND(x_bits, inv_mantissa_mask);
+            x_bits = fyx::simd::bitwise_OR(x_bits, fyx::simd::reinterpret<int_vector_t>(load_brocast<simd_type>(0.5f)));
+            simd_type mantissa = fyx::simd::reinterpret<simd_type>(x_bits);
 
-            exponent_bits = minus(exponent_bits, load_brocast<int_vector_t>(
+            exponent_bits = fyx::simd::minus(exponent_bits, fyx::simd::load_brocast<int_vector_t>(
                 typename int_vector_t::scalar_t{ 0x7f }));
-            simd_type exponent = floating<simd_type>(exponent_bits);
+            simd_type exponent = fyx::simd::floating<simd_type>(exponent_bits);
 
-            exponent = plus(exponent, one);
+            exponent = fyx::simd::plus(exponent, one);
 
-            simd_type needs_adjustment = less(mantissa, sqrt_half).as_basic_simd<simd_type>();
+            simd_type needs_adjustment = fyx::simd::less(mantissa, sqrt_half).as_basic_simd<simd_type>();
 
-            simd_type adjustment = bitwise_AND(mantissa, needs_adjustment);
-            mantissa = minus(mantissa, one);
-            exponent = minus(exponent, bitwise_AND(one, needs_adjustment));
-            mantissa = plus(mantissa, adjustment);
+            simd_type adjustment = fyx::simd::bitwise_AND(mantissa, needs_adjustment);
+            mantissa = fyx::simd::minus(mantissa, one);
+            exponent = fyx::simd::minus(exponent, fyx::simd::bitwise_AND(one, needs_adjustment));
+            mantissa = fyx::simd::plus(mantissa, adjustment);
 
             simd_type mantissa_squared = multiplies(mantissa, mantissa);
 
-            const simd_type poly_coeff0 = load_brocast<simd_type>(7.0376836292E-2f);
-            const simd_type poly_coeff1 = load_brocast<simd_type>(-1.1514610310E-1f);
-            const simd_type poly_coeff2 = load_brocast<simd_type>(1.1676998740E-1f);
-            const simd_type poly_coeff3 = load_brocast<simd_type>(-1.2420140846E-1f);
-            const simd_type poly_coeff4 = load_brocast<simd_type>(1.4249322787E-1f);
-            const simd_type poly_coeff5 = load_brocast<simd_type>(-1.6668057665E-1f);
-            const simd_type poly_coeff6 = load_brocast<simd_type>(2.0000714765E-1f);
-            const simd_type poly_coeff7 = load_brocast<simd_type>(-2.4999993993E-1f);
-            const simd_type poly_coeff8 = load_brocast<simd_type>(3.3333331174E-1f);
+            const simd_type poly_coeff0 = fyx::simd::load_brocast<simd_type>(7.0376836292E-2f);
+            const simd_type poly_coeff1 = fyx::simd::load_brocast<simd_type>(-1.1514610310E-1f);
+            const simd_type poly_coeff2 = fyx::simd::load_brocast<simd_type>(1.1676998740E-1f);
+            const simd_type poly_coeff3 = fyx::simd::load_brocast<simd_type>(-1.2420140846E-1f);
+            const simd_type poly_coeff4 = fyx::simd::load_brocast<simd_type>(1.4249322787E-1f);
+            const simd_type poly_coeff5 = fyx::simd::load_brocast<simd_type>(-1.6668057665E-1f);
+            const simd_type poly_coeff6 = fyx::simd::load_brocast<simd_type>(2.0000714765E-1f);
+            const simd_type poly_coeff7 = fyx::simd::load_brocast<simd_type>(-2.4999993993E-1f);
+            const simd_type poly_coeff8 = fyx::simd::load_brocast<simd_type>(3.3333331174E-1f);
 
-            simd_type polynomial = fma(poly_coeff0, mantissa, poly_coeff1);
-            polynomial = fma(polynomial, mantissa, poly_coeff2);
-            polynomial = fma(polynomial, mantissa, poly_coeff3);
-            polynomial = fma(polynomial, mantissa, poly_coeff4);
-            polynomial = fma(polynomial, mantissa, poly_coeff5);
-            polynomial = fma(polynomial, mantissa, poly_coeff6);
-            polynomial = fma(polynomial, mantissa, poly_coeff7);
-            polynomial = fma(polynomial, mantissa, poly_coeff8);
+            simd_type polynomial = fyx::simd::fma(poly_coeff0, mantissa, poly_coeff1);
+            polynomial = fyx::simd::fma(polynomial, mantissa, poly_coeff2);
+            polynomial = fyx::simd::fma(polynomial, mantissa, poly_coeff3);
+            polynomial = fyx::simd::fma(polynomial, mantissa, poly_coeff4);
+            polynomial = fyx::simd::fma(polynomial, mantissa, poly_coeff5);
+            polynomial = fyx::simd::fma(polynomial, mantissa, poly_coeff6);
+            polynomial = fyx::simd::fma(polynomial, mantissa, poly_coeff7);
+            polynomial = fyx::simd::fma(polynomial, mantissa, poly_coeff8);
 
-            polynomial = multiplies(polynomial, mantissa);
-            polynomial = multiplies(polynomial, mantissa_squared);
+            polynomial = fyx::simd::multiplies(polynomial, mantissa);
+            polynomial = fyx::simd::multiplies(polynomial, mantissa_squared);
 
-            polynomial = fma(exponent, log_q1, polynomial);
+            polynomial = fyx::simd::fma(exponent, log_q1, polynomial);
 
-            polynomial = minus(polynomial, multiplies(mantissa_squared, load_brocast<simd_type>(0.5f)));
+            polynomial = fyx::simd::minus(polynomial, fyx::simd::multiplies(mantissa_squared, fyx::simd::load_brocast<simd_type>(0.5f)));
 
-            simd_type result = plus(mantissa, polynomial);
-            result = fma(exponent, log_q2, result);
+            simd_type result = fyx::simd::plus(mantissa, polynomial);
+            result = fyx::simd::fma(exponent, log_q2, result);
 
-            const simd_type zero_bits = allzero_bits_as<simd_type>();
-            result = where_assign(
+            const simd_type zero_bits = fyx::simd::allzero_bits_as<simd_type>();
+            result = fyx::simd::where_assign(
                 result,
-                reinterpret<simd_type>(load_brocast<int_vector_t>(
+                fyx::simd::reinterpret<simd_type>(fyx::simd::load_brocast<int_vector_t>(
                     static_cast<typename int_vector_t::scalar_t>(0xff800000))),
-                equal(x, zero_bits));
+                fyx::simd::equal(x, zero_bits));
 
-            result = where_assign(
+            result = fyx::simd::where_assign(
                 result,
-                reinterpret<simd_type>(load_brocast<int_vector_t>(
+                fyx::simd::reinterpret<simd_type>(fyx::simd::load_brocast<int_vector_t>(
                     static_cast<typename int_vector_t::scalar_t>(0x7fc00000))),
                 less(x, zero_bits));
 
-            result = where_assign(
+            result = fyx::simd::where_assign(
                 result,
                 x,
-                equal(x, reinterpret<simd_type>(load_brocast<int_vector_t>(
+                fyx::simd::equal(x, fyx::simd::reinterpret<simd_type>(fyx::simd::load_brocast<int_vector_t>(
                     static_cast<typename int_vector_t::scalar_t>(0x7f800000)))));
 
             return result;
@@ -1501,11 +1538,11 @@ namespace fyx::simd
     }
     float16x16 log(float16x16 input)
     {
-        __m256 vsrc_low = cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(input.data));
-        __m256 vsrc_high = cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(input.data));
+        __m256 vsrc_low = cvt8lane_fp16_to_fp32(detail::split_low(input.data));
+        __m256 vsrc_high = cvt8lane_fp16_to_fp32(detail::split_high(input.data));
         __m128i v_low = cvt8lane_fp32_to_fp16(fyx::simd::log(float32x8{ vsrc_low }).data);
         __m128i v_high = cvt8lane_fp32_to_fp16(fyx::simd::log(float32x8{ vsrc_high }).data);
-        return float16x16{ FOYE_SIMD_MERGE_i(v_low, v_high) };
+        return float16x16{ detail::merge(v_low, v_high) };
     }
 #endif
 #if defined(_FOYE_SIMD_HAS_BF16_)
@@ -1517,11 +1554,11 @@ namespace fyx::simd
     }
     bfloat16x16 log(bfloat16x16 input)
     {
-        __m256 vsrc_low = cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(input.data));
-        __m256 vsrc_high = cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(input.data));
+        __m256 vsrc_low = cvt8lane_bf16_to_fp32(detail::split_low(input.data));
+        __m256 vsrc_high = cvt8lane_bf16_to_fp32(detail::split_high(input.data));
         __m128i v_low = cvt8lane_fp32_to_bf16(fyx::simd::log(float32x8{ vsrc_low }).data);
         __m128i v_high = cvt8lane_fp32_to_bf16(fyx::simd::log(float32x8{ vsrc_high }).data);
-        return bfloat16x16{ FOYE_SIMD_MERGE_i(v_low, v_high) };
+        return bfloat16x16{ detail::merge(v_low, v_high) };
     }
 #endif
 
@@ -1562,20 +1599,7 @@ namespace fyx::simd
 
                 mask_from_simd_t<simd_type> guess_sq_zero = equal(guess_squared, zero);
 
-                int testc_res{};
-                if constexpr (fyx::simd::is_256bits_simd_v<simd_type>)
-                {
-                    testc_res = _mm256_testc_ps(
-                        detail::basic_reinterpret<__m256>(guess_sq_zero.data),
-                        neone.data);
-                }
-                else
-                {
-                    testc_res = _mm_testc_ps(
-                        detail::basic_reinterpret<__m128>(guess_sq_zero.data),
-                        neone.data);
-                }
-
+                int testc_res = bitwise_test_check(guess_sq_zero.as_basic_simd<simd_type>(), neone);
                 if (testc_res)
                 {
                     break;
@@ -1592,20 +1616,7 @@ namespace fyx::simd
                 simd_type threshold = multiplies(eps, abs_next_guess);
 
                 mask_from_simd_t<simd_type> converged = less(abs_diff, threshold);
-                int testc2_res{};
-                if constexpr (fyx::simd::is_256bits_simd_v<simd_type>)
-                {
-                    testc2_res = _mm256_testc_ps(
-                        detail::basic_reinterpret<__m256>(converged.data),
-                        neone.data);
-                }
-                else
-                {
-                    testc2_res = _mm_testc_ps(
-                        detail::basic_reinterpret<__m128>(converged.data),
-                        neone.data);
-                }
-
+                int testc2_res = bitwise_test_check(converged.as_basic_simd<simd_type>(), neone);
                 if (testc2_res)
                 {
                     break;
@@ -1723,11 +1734,11 @@ namespace fyx::simd
     }
     float16x16 cbrt(float16x16 input)
     {
-        __m256 vsrc_low = cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(input.data));
-        __m256 vsrc_high = cvt8lane_fp16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(input.data));
+        __m256 vsrc_low = cvt8lane_fp16_to_fp32(detail::split_low(input.data));
+        __m256 vsrc_high = cvt8lane_fp16_to_fp32(detail::split_high(input.data));
         __m128i v_low = cvt8lane_fp32_to_fp16(fyx::simd::cbrt(float32x8{ vsrc_low }).data);
         __m128i v_high = cvt8lane_fp32_to_fp16(fyx::simd::cbrt(float32x8{ vsrc_high }).data);
-        return float16x16{ FOYE_SIMD_MERGE_i(v_low, v_high) };
+        return float16x16{ detail::merge(v_low, v_high) };
     }
 #endif
 #if defined(_FOYE_SIMD_HAS_BF16_)
@@ -1739,11 +1750,11 @@ namespace fyx::simd
     }
     bfloat16x16 cbrt(bfloat16x16 input)
     {
-        __m256 vsrc_low = cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_LOW_i(input.data));
-        __m256 vsrc_high = cvt8lane_bf16_to_fp32(FOYE_SIMD_EXTRACT_HIGH_i(input.data));
+        __m256 vsrc_low = cvt8lane_bf16_to_fp32(detail::split_low(input.data));
+        __m256 vsrc_high = cvt8lane_bf16_to_fp32(detail::split_high(input.data));
         __m128i v_low = cvt8lane_fp32_to_bf16(fyx::simd::cbrt(float32x8{ vsrc_low }).data);
         __m128i v_high = cvt8lane_fp32_to_bf16(fyx::simd::cbrt(float32x8{ vsrc_high }).data);
-        return bfloat16x16{ FOYE_SIMD_MERGE_i(v_low, v_high) };
+        return bfloat16x16{ detail::merge(v_low, v_high) };
     }
 #endif
 
@@ -1843,11 +1854,10 @@ namespace fyx::simd
             simd_type result = where_assign(exp_result, signed_result, mask_from_simd_t<simd_type>{ neg_valid });
             result = where_assign(result, result_zero, zero_mask);
             result = where_assign(result, result_one, one_mask);
-            result = where_assign(result, nan_result, 
-                mask_from_simd_t<simd_type>{ 
+            result = where_assign(result, nan_result,
                 bitwise_ANDNOT(
                     int_mask.as_basic_simd<simd_type>(), 
-                    neg_mask.as_basic_simd<simd_type>()) }
+                    neg_mask.as_basic_simd<simd_type>()).as_basic_mask()
             );
 
             return result;
@@ -2068,9 +2078,9 @@ namespace fyx::simd
 
             simd_type result_normal = floating<simd_type>(minus(exponent, load_brocast<sint_simd_t>(127)));
 
-            const simd_type minus_inf = load_brocast<simd_type>(-INFINITY);
-            const simd_type plus_inf = load_brocast<simd_type>(INFINITY);
-            const simd_type nan_val = load_brocast<simd_type>(NAN);
+            const simd_type minus_inf = load_brocast<simd_type>(-(std::numeric_limits<typename simd_type::scalar_t>::infinity()));
+            const simd_type plus_inf = load_brocast<simd_type>(std::numeric_limits<typename simd_type::scalar_t>::infinity());
+            const simd_type nan_val = load_brocast<simd_type>(std::numeric_limits<typename simd_type::scalar_t>::quiet_NaN());
 
             result_normal = where_assign(result_normal, minus_inf, is_zero);
 
@@ -2123,9 +2133,9 @@ namespace fyx::simd
 
             simd_type result_normal = floating<simd_type>(minus(exponent, load_brocast<sint_simd_t>(1023)));
 
-            simd_type minus_inf = load_brocast<simd_type>(-INFINITY);
-            simd_type plus_inf = load_brocast<simd_type>(INFINITY);
-            simd_type nan_val = load_brocast<simd_type>(NAN);
+            simd_type minus_inf = load_brocast<simd_type>(-(std::numeric_limits<typename simd_type::scalar_t>::infinity()));
+            simd_type plus_inf = load_brocast<simd_type>(std::numeric_limits<typename simd_type::scalar_t>::infinity());
+            simd_type nan_val = load_brocast<simd_type>(std::numeric_limits<typename simd_type::scalar_t>::quiet_NaN());
 
             result_normal = where_assign(result_normal, minus_inf, is_zero);
 
@@ -2163,6 +2173,377 @@ namespace fyx::simd
     float64x4 logb(float64x4 input) { return fyx::simd::detail::logbF64_fexponent_soft_simulation(input); }
     float64x2 logb(float64x2 input) { return fyx::simd::detail::logbF64_fexponent_soft_simulation(input); }
 #endif
+
+#if defined(FOYE_SIMD_ENABLE_SVML)
+    float32x8 sin(float32x8 input) { return float32x8{ _mm256_sin_ps(input.data) }; }
+    float64x4 sin(float64x4 input) { return float64x4{ _mm256_sin_pd(input.data) }; }
+    float32x4 sin(float32x4 input) { return float32x4{ _mm_sin_ps(input.data) }; }
+    float64x2 sin(float64x2 input) { return float64x2{ _mm_sin_pd(input.data) }; }
+
+    float32x8 cos(float32x8 input) { return float32x8{ _mm256_cos_ps(input.data) }; }
+    float64x4 cos(float64x4 input) { return float64x4{ _mm256_cos_pd(input.data) }; }
+    float32x4 cos(float32x4 input) { return float32x4{ _mm_cos_ps(input.data) }; }
+    float64x2 cos(float64x2 input) { return float64x2{ _mm_cos_pd(input.data) }; }
+#else
+    namespace detail
+    {
+        constexpr std::uint32_t SIGN_BIT_MASK = 0x80000000;
+        constexpr std::uint32_t INV_SIGN_BIT_MASK = ~SIGN_BIT_MASK;
+
+        constexpr float PI_OVER_4_RECIPROCAL = 1.27323954473516f;
+
+        constexpr float REDUCE_COEFF1 = -0.78515625f;
+        constexpr float REDUCE_COEFF2 = -2.4187564849853515625e-4f;
+        constexpr float REDUCE_COEFF3 = -3.77489497744594108e-8f;
+
+        constexpr float COS_COEFF0 = 2.443315711809948E-005f;
+        constexpr float COS_COEFF1 = -1.388731625493765E-003f;
+        constexpr float COS_COEFF2 = 4.166664568298827E-002f;
+        constexpr float HALF = 0.5f;
+        constexpr float ONE = 1.0f;
+
+        constexpr float SIN_COEFF0 = -1.9515295891E-4f;
+        constexpr float SIN_COEFF1 = 8.3321608736E-3f;
+        constexpr float SIN_COEFF2 = -1.6666654611E-1f;
+
+        constexpr int INTEGER_ONE = 1;
+        constexpr int INTEGER_TWO = 2;
+        constexpr int INTEGER_FOUR = 4;
+        constexpr int SHIFT_29 = 29;
+
+        template<typename simd_type>
+        simd_type sin_soft_simulation(simd_type input)
+        {
+            using sint_simd_t = basic_simd<detail::integral_t<
+                simd_type::scalar_bit_width, true>, simd_type::bit_width>;
+
+            simd_type poly_result, sign_bit, normalized_x;
+            sint_simd_t quadrant_int, quadrant_parity;
+
+            simd_type x = input;
+            sign_bit = x;
+
+            simd_type inv_sign_mask = load_brocast<simd_type>(std::bit_cast<float>(INV_SIGN_BIT_MASK));
+            simd_type sign_mask = load_brocast<simd_type>(std::bit_cast<float>(SIGN_BIT_MASK));
+            simd_type pi_over_4_reciprocal = load_brocast<simd_type>(PI_OVER_4_RECIPROCAL);
+
+            x = bitwise_AND(x, inv_sign_mask);
+            sign_bit = bitwise_AND(sign_bit, sign_mask);
+
+            normalized_x = multiplies(x, pi_over_4_reciprocal);
+
+            quadrant_int = trunc_as_i(normalized_x);
+
+            quadrant_int = plus(quadrant_int, load_brocast<sint_simd_t>(INTEGER_ONE));
+            quadrant_int = bitwise_AND(quadrant_int, load_brocast<sint_simd_t>(~INTEGER_ONE));
+            normalized_x = floating<simd_type>(quadrant_int);
+
+            quadrant_parity = bitwise_AND(quadrant_int, load_brocast<sint_simd_t>(INTEGER_FOUR));
+            quadrant_parity = shift_left<SHIFT_29>(quadrant_parity);
+
+            quadrant_int = bitwise_AND(quadrant_int, load_brocast<sint_simd_t>(INTEGER_TWO));
+            quadrant_int = equal(quadrant_int, allzero_bits_as<sint_simd_t>()).as_basic_simd<sint_simd_t>();
+
+            simd_type sign_swap_mask = reinterpret<simd_type>(quadrant_parity);
+            simd_type use_cosine_mask = reinterpret<simd_type>(quadrant_int);
+            sign_bit = bitwise_XOR(sign_bit, sign_swap_mask);
+
+            simd_type reduce_term1 = load_brocast<simd_type>(REDUCE_COEFF1);
+            simd_type reduce_term2 = load_brocast<simd_type>(REDUCE_COEFF2);
+            simd_type reduce_term3 = load_brocast<simd_type>(REDUCE_COEFF3);
+
+            x = fma(normalized_x, reduce_term1, x);
+            x = fma(normalized_x, reduce_term2, x);
+            x = fma(normalized_x, reduce_term3, x);
+
+            simd_type cos_poly = load_brocast<simd_type>(COS_COEFF0);
+            simd_type x_squared = multiplies(x, x);
+
+            cos_poly = fma(cos_poly, x_squared, load_brocast<simd_type>(COS_COEFF1));
+            cos_poly = fma(cos_poly, x_squared, load_brocast<simd_type>(COS_COEFF2));
+            cos_poly = multiplies(cos_poly, x_squared);
+            cos_poly = multiplies(cos_poly, x_squared);
+
+            simd_type half_x_squared = multiplies(x_squared, load_brocast<simd_type>(HALF));
+            cos_poly = minus(cos_poly, half_x_squared);
+            cos_poly = plus(cos_poly, load_brocast<simd_type>(ONE));
+
+            simd_type sin_poly = load_brocast<simd_type>(SIN_COEFF0);
+            sin_poly = fma(sin_poly, x_squared, load_brocast<simd_type>(SIN_COEFF1));
+            sin_poly = fma(sin_poly, x_squared, load_brocast<simd_type>(SIN_COEFF2));
+            sin_poly = multiplies(sin_poly, x_squared);
+            sin_poly = multiplies(sin_poly, x);
+            sin_poly = plus(sin_poly, x);
+
+            sin_poly = bitwise_AND(use_cosine_mask, sin_poly);
+            cos_poly = bitwise_ANDNOT(use_cosine_mask, cos_poly);
+            poly_result = plus(cos_poly, sin_poly);
+
+            poly_result = bitwise_XOR(poly_result, sign_bit);
+            return poly_result;
+        }
+
+        template<typename simd_type>
+        simd_type cos_soft_simulation(simd_type input)
+        {
+            using sint_simd_t = basic_simd<detail::integral_t<
+                simd_type::scalar_bit_width, true>, simd_type::bit_width>;
+
+            simd_type x = input;
+
+            simd_type inv_sign_mask = reinterpret<simd_type>(load_brocast<sint_simd_t>(INV_SIGN_BIT_MASK));
+            simd_type cephes_FOPI = load_brocast<simd_type>(PI_OVER_4_RECIPROCAL);
+
+            sint_simd_t pi32_256_1 = load_brocast<sint_simd_t>(INTEGER_ONE);
+            sint_simd_t pi32_256_inv1 = load_brocast<sint_simd_t>(~INTEGER_ONE);
+            sint_simd_t pi32_256_4 = load_brocast<sint_simd_t>(INTEGER_FOUR);
+            sint_simd_t pi32_256_2 = load_brocast<sint_simd_t>(INTEGER_TWO);
+            sint_simd_t pi32_256_0 = load_brocast<sint_simd_t>(0);
+
+            simd_type minus_cephes_DP1 = load_brocast<simd_type>(REDUCE_COEFF1);
+            simd_type minus_cephes_DP2 = load_brocast<simd_type>(REDUCE_COEFF2);
+            simd_type minus_cephes_DP3 = load_brocast<simd_type>(REDUCE_COEFF3);
+
+            simd_type sincof_p0 = load_brocast<simd_type>(SIN_COEFF0);
+            simd_type sincof_p1 = load_brocast<simd_type>(SIN_COEFF1);
+            simd_type sincof_p2 = load_brocast<simd_type>(SIN_COEFF2);
+
+            simd_type coscof_p0 = load_brocast<simd_type>(COS_COEFF0);
+            simd_type coscof_p1 = load_brocast<simd_type>(COS_COEFF1);
+            simd_type coscof_p2 = load_brocast<simd_type>(COS_COEFF2);
+
+            simd_type ps256_0p5 = load_brocast<simd_type>(HALF);
+            simd_type ps256_1 = load_brocast<simd_type>(ONE);
+
+            x = bitwise_AND(x, inv_sign_mask);
+            simd_type y = multiplies(x, cephes_FOPI);
+
+            sint_simd_t imm2 = trunc_as_i(y);
+
+            imm2 = plus(imm2, pi32_256_1);
+            imm2 = bitwise_AND(imm2, pi32_256_inv1);
+            y = floating<simd_type>(imm2);
+            imm2 = minus(imm2, pi32_256_2);
+
+            sint_simd_t imm0 = bitwise_ANDNOT(imm2, pi32_256_4);
+            imm0 = shift_left<SHIFT_29>(imm0);
+
+            imm2 = bitwise_AND(imm2, pi32_256_2);
+            imm2 = equal(imm2, pi32_256_0).as_basic_simd<sint_simd_t>();
+
+            simd_type sign_bit = reinterpret<simd_type>(imm0);
+            simd_type poly_mask = reinterpret<simd_type>(imm2);
+
+            x = fma(y, minus_cephes_DP1, x);
+            x = fma(y, minus_cephes_DP2, x);
+            x = fma(y, minus_cephes_DP3, x);
+
+            y = coscof_p0;
+            simd_type z = multiplies(x, x);
+
+            y = fma(y, z, coscof_p1);
+            y = fma(y, z, coscof_p2);
+            y = multiplies(y, z);
+            y = multiplies(y, z);
+            simd_type tmp = multiplies(z, ps256_0p5);
+            y = minus(y, tmp);
+            y = plus(y, ps256_1);
+
+            simd_type y2 = fma(sincof_p0, z, sincof_p1);
+            y2 = fma(y2, z, sincof_p2);
+            y2 = multiplies(y2, z);
+            y2 = multiplies(y2, x);
+            y2 = plus(y2, x);
+
+            simd_type xmm3 = poly_mask;
+            y2 = bitwise_AND(xmm3, y2);
+            y = bitwise_ANDNOT(xmm3, y);
+            y = plus(y, y2);
+
+            y = bitwise_XOR(y, sign_bit);
+
+            return y;
+        }
+    }
+
+    float32x8 sin(float32x8 input) { return detail::sin_soft_simulation(input); }
+    float64x4 sin(float64x4 input) { return detail::sin_soft_simulation(input); }
+    float32x4 sin(float32x4 input) { return detail::sin_soft_simulation(input); }
+    float64x2 sin(float64x2 input) { return detail::sin_soft_simulation(input); }
+
+    float32x8 cos(float32x8 input) { return detail::cos_soft_simulation(input); }
+    float64x4 cos(float64x4 input) { return detail::cos_soft_simulation(input); }
+    float32x4 cos(float32x4 input) { return detail::cos_soft_simulation(input); }
+    float64x2 cos(float64x2 input) { return detail::cos_soft_simulation(input); }
+#endif
+#if defined(_FOYE_SIMD_HAS_FP16_)
+    float16x8 sin(float16x8 input)
+    {
+        float32x8 result32 = fyx::simd::sin(fyx::simd::expand<float32x8>(input));
+        return fyx::simd::narrowing<float16x8>(result32);
+    }
+
+    float16x16 sin(float16x16 input)
+    {
+        float32x8 result_low = fyx::simd::sin(fyx::simd::expand_low<float32x8>(input));
+        float32x8 result_high = fyx::simd::sin(fyx::simd::expand_high<float32x8>(input));
+        return fyx::simd::merge(
+            fyx::simd::narrowing<float16x8>(result_low),
+            fyx::simd::narrowing<float16x8>(result_high)
+        );
+    }
+
+    float16x8 cos(float16x8 input)
+    {
+        float32x8 result32 = fyx::simd::cos(fyx::simd::expand<float32x8>(input));
+        return fyx::simd::narrowing<float16x8>(result32);
+    }
+
+    float16x16 cos(float16x16 input)
+    {
+        float32x8 result_low = fyx::simd::cos(fyx::simd::expand_low<float32x8>(input));
+        float32x8 result_high = fyx::simd::cos(fyx::simd::expand_high<float32x8>(input));
+        return fyx::simd::merge(
+            fyx::simd::narrowing<float16x8>(result_low),
+            fyx::simd::narrowing<float16x8>(result_high)
+        );
+    }
+#endif
+#if defined(_FOYE_SIMD_HAS_BF16_)
+    bfloat16x8 sin(bfloat16x8 input)
+    {
+        float32x8 result32 = fyx::simd::sin(fyx::simd::expand<float32x8>(input));
+        return fyx::simd::narrowing<bfloat16x8>(result32);
+    }
+
+    bfloat16x16 sin(bfloat16x16 input)
+    {
+        float32x8 result_low = fyx::simd::sin(fyx::simd::expand_low<float32x8>(input));
+        float32x8 result_high = fyx::simd::sin(fyx::simd::expand_high<float32x8>(input));
+        return fyx::simd::merge(
+            fyx::simd::narrowing<bfloat16x8>(result_low),
+            fyx::simd::narrowing<bfloat16x8>(result_high)
+        );
+    }
+
+    bfloat16x8 cos(bfloat16x8 input)
+    {
+        float32x8 result32 = fyx::simd::cos(fyx::simd::expand<float32x8>(input));
+        return fyx::simd::narrowing<bfloat16x8>(result32);
+    }
+
+    bfloat16x16 cos(bfloat16x16 input)
+    {
+        float32x8 result_low = fyx::simd::cos(fyx::simd::expand_low<float32x8>(input));
+        float32x8 result_high = fyx::simd::cos(fyx::simd::expand_high<float32x8>(input));
+        return fyx::simd::merge(
+            fyx::simd::narrowing<bfloat16x8>(result_low),
+            fyx::simd::narrowing<bfloat16x8>(result_high)
+        );
+    }
+#endif
+
+
+#if defined(FOYE_SIMD_ENABLE_SVML)
+    float32x8 asin(float32x8 input) { return float32x8{ _mm256_asin_ps(input.data) }; }
+    float64x4 asin(float64x4 input) { return float64x4{ _mm256_asin_pd(input.data) }; }
+    float32x4 asin(float32x4 input) { return float32x4{ _mm_asin_ps(input.data) }; }
+    float64x2 asin(float64x2 input) { return float64x2{ _mm_asin_pd(input.data) }; }
+#else
+    namespace detail
+    {
+        template<typename simd_type>
+        simd_type asinF32_soft_simulation(simd_type input)
+        {
+            using sint_simd_t = basic_simd<detail::integral_t<
+                simd_type::scalar_bit_width, true>, simd_type::bit_width>;
+
+            simd_type xx = input;
+            const simd_type ABS_MASK = reinterpret<simd_type>(load_brocast<sint_simd_t>(0x7FFFFFFF));
+            const simd_type ONE = load_brocast<simd_type>(1.0f);
+            const simd_type ZERO = allzero_bits_as<simd_type>();
+            const simd_type PI_OVER_2 = load_brocast<simd_type>(1.57079632f);
+            const simd_type TWO = load_brocast<simd_type>(2.0f);
+            const simd_type SMALL_THRESHOLD = load_brocast<simd_type>(1.0e-4f);
+
+            const simd_type ASIN_COEFF0 = load_brocast<simd_type>(-0.0187293f);
+            const simd_type ASIN_COEFF1 = load_brocast<simd_type>(0.0742610f);
+            const simd_type ASIN_COEFF2 = load_brocast<simd_type>(-0.2121144f);
+            const simd_type ASIN_COEFF3 = load_brocast<simd_type>(1.5707288f);
+
+            simd_type abs_x = bitwise_AND(xx, ABS_MASK);
+
+            mask_from_simd_t<simd_type> output_nan = greater(abs_x, ONE);
+            mask_from_simd_t<simd_type> small_value = less(abs_x, SMALL_THRESHOLD);
+
+            simd_type negate = where_assign(ZERO, ONE, less(xx, ZERO));
+            simd_type x = abs_x;
+
+            simd_type result = fma(x, ASIN_COEFF0, ASIN_COEFF1);
+            result = fma(x, result, ASIN_COEFF2);
+            result = fma(x, result, ASIN_COEFF3);
+
+            simd_type sqrt_term = sqrt(minus(ONE, x));
+            result = fnma(sqrt_term, result, PI_OVER_2);
+
+            simd_type two_times_result = multiplies(TWO, result);
+            result = fnma(two_times_result, negate, result);
+
+            result = bitwise_OR(result, output_nan.as_basic_simd<simd_type>());
+            result = where_assign(result, xx, small_value);
+            return result;
+        }
+    }
+
+    float32x8 asin(float32x8 input) { return detail::asinF32_soft_simulation(input); }
+    //float64x4 asin(float64x4 input) { return detail::asinF64_soft_simulation(input); }
+    float32x4 asin(float32x4 input) { return detail::asinF32_soft_simulation(input); }
+    //float64x2 asin(float64x2 input) { return detail::asinF64_soft_simulation(input); }
+#endif
+#if defined(_FOYE_SIMD_HAS_FP16_)
+    float16x8 asin(float16x8 input)
+    {
+        float32x8 result32 = fyx::simd::asin(fyx::simd::expand<float32x8>(input));
+        return fyx::simd::narrowing<float16x8>(result32);
+    }
+
+    float16x16 asin(float16x16 input)
+    {
+        float32x8 result_low = fyx::simd::asin(fyx::simd::expand_low<float32x8>(input));
+        float32x8 result_high = fyx::simd::asin(fyx::simd::expand_high<float32x8>(input));
+        return fyx::simd::merge(
+            fyx::simd::narrowing<float16x8>(result_low),
+            fyx::simd::narrowing<float16x8>(result_high)
+        );
+    }
+#endif
+#if defined(_FOYE_SIMD_HAS_BF16_)
+    bfloat16x8 asin(bfloat16x8 input)
+    {
+        float32x8 result32 = fyx::simd::asin(fyx::simd::expand<float32x8>(input));
+        return fyx::simd::narrowing<bfloat16x8>(result32);
+    }
+
+    bfloat16x16 asin(bfloat16x16 input)
+    {
+        float32x8 result_low = fyx::simd::asin(fyx::simd::expand_low<float32x8>(input));
+        float32x8 result_high = fyx::simd::asin(fyx::simd::expand_high<float32x8>(input));
+        return fyx::simd::merge(
+            fyx::simd::narrowing<bfloat16x8>(result_low),
+            fyx::simd::narrowing<bfloat16x8>(result_high)
+        );
+    }
+#endif
+
+#if defined(FOYE_SIMD_ENABLE_SVML)
+    float32x8 tan(float32x8 input) { return float32x8{ _mm256_tan_ps(input.data) }; }
+    float64x4 tan(float64x4 input) { return float64x4{ _mm256_tan_pd(input.data) }; }
+    float32x4 tan(float32x4 input) { return float32x4{ _mm_tan_ps(input.data) }; }
+    float64x2 tan(float64x2 input) { return float64x2{ _mm_tan_pd(input.data) }; }
+#else
+#endif
+
+
 }
 
 #endif
