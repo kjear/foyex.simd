@@ -56,42 +56,10 @@ namespace fyx::simd::test
 #endif
 
 #if defined(FOYE_SIMD_ENABLE_SVML)
-    float32x8 sin(float32x8 input) { return float32x8{ _mm256_sin_ps(input.data) }; }
-    float64x4 sin(float64x4 input) { return float64x4{ _mm256_sin_pd(input.data) }; }
-    float32x4 sin(float32x4 input) { return float32x4{ _mm_sin_ps(input.data) }; }
-    float64x2 sin(float64x2 input) { return float64x2{ _mm_sin_pd(input.data) }; }
-#else
-#endif
-
-#if defined(FOYE_SIMD_ENABLE_SVML)
-    float32x8 asin(float32x8 input) { return float32x8{ _mm256_asin_ps(input.data) }; }
-    float64x4 asin(float64x4 input) { return float64x4{ _mm256_asin_pd(input.data) }; }
-    float32x4 asin(float32x4 input) { return float32x4{ _mm_asin_ps(input.data) }; }
-    float64x2 asin(float64x2 input) { return float64x2{ _mm_asin_pd(input.data) }; }
-#else
-#endif
-
-#if defined(FOYE_SIMD_ENABLE_SVML)
-    float32x8 cos(float32x8 input) { return float32x8{ _mm256_cos_ps(input.data) }; }
-    float64x4 cos(float64x4 input) { return float64x4{ _mm256_cos_pd(input.data) }; }
-    float32x4 cos(float32x4 input) { return float32x4{ _mm_cos_ps(input.data) }; }
-    float64x2 cos(float64x2 input) { return float64x2{ _mm_cos_pd(input.data) }; }
-#else
-#endif
-
-#if defined(FOYE_SIMD_ENABLE_SVML)
     float32x8 acos(float32x8 input) { return float32x8{ _mm256_acos_ps(input.data) }; }
     float64x4 acos(float64x4 input) { return float64x4{ _mm256_acos_pd(input.data) }; }
     float32x4 acos(float32x4 input) { return float32x4{ _mm_acos_ps(input.data) }; }
     float64x2 acos(float64x2 input) { return float64x2{ _mm_acos_pd(input.data) }; }
-#endif
-
-#if defined(FOYE_SIMD_ENABLE_SVML)
-    float32x8 tan(float32x8 input) { return float32x8{ _mm256_tan_ps(input.data) }; }
-    float64x4 tan(float64x4 input) { return float64x4{ _mm256_tan_pd(input.data) }; }
-    float32x4 tan(float32x4 input) { return float32x4{ _mm_tan_ps(input.data) }; }
-    float64x2 tan(float64x2 input) { return float64x2{ _mm_tan_pd(input.data) }; }
-#else
 #endif
 
 #if defined(FOYE_SIMD_ENABLE_SVML)
