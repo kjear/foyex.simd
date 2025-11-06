@@ -54,27 +54,24 @@ namespace fyx::simd
     mask_64x2 equal(float64x2 lhs, float64x2 rhs) { return mask_64x2{ _mm_cmpeq_pd(rhs.data, lhs.data) }; }
     mask_64x4 equal(float64x4 lhs, float64x4 rhs) { return mask_64x4{ _mm256_cmp_pd(rhs.data, lhs.data, _CMP_EQ_OQ) }; }
 
-    template<typename simd_type>
+    template<typename simd_type> requires(fyx::simd::is_basic_simd_v<simd_type>)
     mask_from_simd_t<simd_type> not_equal(simd_type lhs, simd_type rhs)
     {
-        _FOYE_SIMD_ASSERT_BASIC_SIMD_SPECIALIZATION_(simd_type);
         return mask_from_simd_t<simd_type>{ fyx::simd::bitwise_NOT(simd_type{ fyx::simd::equal(lhs, rhs) }).data };
     }
 
-    template<typename simd_type>
+    template<typename simd_type> requires(fyx::simd::is_basic_simd_v<simd_type>)
     mask_from_simd_t<simd_type> less_equal(simd_type lhs, simd_type rhs)
     {
-        _FOYE_SIMD_ASSERT_BASIC_SIMD_SPECIALIZATION_(simd_type);
         return mask_from_simd_t<simd_type>{
             fyx::simd::bitwise_OR(
                 simd_type{ fyx::simd::less(rhs, lhs) },
                 simd_type{ fyx::simd::equal(rhs, lhs) }).data };
     }
 
-    template<typename simd_type>
+    template<typename simd_type> requires(fyx::simd::is_basic_simd_v<simd_type>)
     mask_from_simd_t<simd_type> greater_equal(simd_type lhs, simd_type rhs)
     {
-        _FOYE_SIMD_ASSERT_BASIC_SIMD_SPECIALIZATION_(simd_type);
         return mask_from_simd_t<simd_type>{
             fyx::simd::bitwise_OR(
                 simd_type{ fyx::simd::greater(rhs, lhs) },
@@ -112,11 +109,11 @@ mask_16x8 funcname(vhalf_type##x8 lhs, vhalf_type##x8 rhs) \
 }\
 mask_16x16 funcname(vhalf_type##x16 lhs, vhalf_type##x16 rhs)\
 {\
-    __m256 res_low = cmp_expr(half_to_s(FOYE_SIMD_EXTRACT_LOW_i(lhs.data)),\
-        half_to_s(FOYE_SIMD_EXTRACT_LOW_i(rhs.data)));\
-    __m256 res_high = cmp_expr(half_to_s(FOYE_SIMD_EXTRACT_HIGH_i(lhs.data)),\
-        half_to_s(FOYE_SIMD_EXTRACT_HIGH_i(rhs.data)));\
-    __m256i half_res = FOYE_SIMD_MERGE_i(s_to_half(res_low),\
+    __m256 res_low = cmp_expr(half_to_s(detail::split_low(lhs.data)),\
+        half_to_s(detail::split_low(rhs.data)));\
+    __m256 res_high = cmp_expr(half_to_s(detail::split_high(lhs.data)),\
+        half_to_s(detail::split_high(rhs.data)));\
+    __m256i half_res = detail::merge(s_to_half(res_low),\
         s_to_half(res_high));\
     return mask_16x16{ half_res };\
 }
@@ -130,15 +127,15 @@ template<> mask_16x8 funcname(vhalf_type##x8 lhs, vhalf_type##x8 rhs) \
 }\
 template<> mask_16x16 funcname(vhalf_type##x16 lhs, vhalf_type##x16 rhs)\
 {\
-    __m256 res_low = cmp_expr(half_to_s(FOYE_SIMD_EXTRACT_LOW_i(lhs.data)),\
-        half_to_s(FOYE_SIMD_EXTRACT_LOW_i(rhs.data)));\
-    __m256 res_high = cmp_expr(half_to_s(FOYE_SIMD_EXTRACT_HIGH_i(lhs.data)),\
-        half_to_s(FOYE_SIMD_EXTRACT_HIGH_i(rhs.data)));\
-    __m256i half_res = FOYE_SIMD_MERGE_i(s_to_half(res_low),\
+    __m256 res_low = cmp_expr(half_to_s(detail::split_low(lhs.data)),\
+        half_to_s(detail::split_low(rhs.data)));\
+    __m256 res_high = cmp_expr(half_to_s(detail::split_high(lhs.data)),\
+        half_to_s(detail::split_high(rhs.data)));\
+    __m256i half_res = detail::merge(s_to_half(res_low),\
         s_to_half(res_high));\
     return mask_16x16{ half_res };\
 }
-
+    
 #else
 #define _FOYE_SIMD_CMP_LESS_(...)
 #define _FOYE_SIMD_CMP_GREATER_(...)
@@ -154,17 +151,17 @@ template<> mask_16x16 funcname(vhalf_type##x16 lhs, vhalf_type##x16 rhs)\
     _FOYE_SIMD_DEFINE_HALF_CMP_FUNCION_(less, float16, cvt8lane_fp32_to_fp16, cvt8lane_fp16_to_fp32, _FOYE_SIMD_CMP_LESS_)
     _FOYE_SIMD_DEFINE_HALF_CMP_FUNCION_(greater, float16, cvt8lane_fp32_to_fp16, cvt8lane_fp16_to_fp32, _FOYE_SIMD_CMP_GREATER_)
     _FOYE_SIMD_DEFINE_HALF_CMP_FUNCION_(equal, float16, cvt8lane_fp32_to_fp16, cvt8lane_fp16_to_fp32, _FOYE_SIMD_CMP_EQUAL_)
-        _FOYE_SIMD_DEFINE_HALF_MIX_CMP_FUNCION_(not_equal, float16, cvt8lane_fp32_to_fp16, cvt8lane_fp16_to_fp32, _FOYE_SIMD_CMP_NOT_EQUAL_)
-        _FOYE_SIMD_DEFINE_HALF_MIX_CMP_FUNCION_(less_equal, float16, cvt8lane_fp32_to_fp16, cvt8lane_fp16_to_fp32, _FOYE_SIMD_CMP_LESS_EQUAL_)
-        _FOYE_SIMD_DEFINE_HALF_MIX_CMP_FUNCION_(greater_equal, float16, cvt8lane_fp32_to_fp16, cvt8lane_fp16_to_fp32, _FOYE_SIMD_CMP_GREATER_EQUAL_)
+    _FOYE_SIMD_DEFINE_HALF_MIX_CMP_FUNCION_(not_equal, float16, cvt8lane_fp32_to_fp16, cvt8lane_fp16_to_fp32, _FOYE_SIMD_CMP_NOT_EQUAL_)
+    _FOYE_SIMD_DEFINE_HALF_MIX_CMP_FUNCION_(less_equal, float16, cvt8lane_fp32_to_fp16, cvt8lane_fp16_to_fp32, _FOYE_SIMD_CMP_LESS_EQUAL_)
+    _FOYE_SIMD_DEFINE_HALF_MIX_CMP_FUNCION_(greater_equal, float16, cvt8lane_fp32_to_fp16, cvt8lane_fp16_to_fp32, _FOYE_SIMD_CMP_GREATER_EQUAL_)
 #endif
 #if defined(_FOYE_SIMD_HAS_BF16_)
     _FOYE_SIMD_DEFINE_HALF_CMP_FUNCION_(less, bfloat16, cvt8lane_fp32_to_bf16, cvt8lane_bf16_to_fp32, _FOYE_SIMD_CMP_LESS_)
     _FOYE_SIMD_DEFINE_HALF_CMP_FUNCION_(greater, bfloat16, cvt8lane_fp32_to_bf16, cvt8lane_bf16_to_fp32, _FOYE_SIMD_CMP_GREATER_)
     _FOYE_SIMD_DEFINE_HALF_CMP_FUNCION_(equal, bfloat16, cvt8lane_fp32_to_bf16, cvt8lane_bf16_to_fp32, _FOYE_SIMD_CMP_EQUAL_)
-        _FOYE_SIMD_DEFINE_HALF_MIX_CMP_FUNCION_(not_equal, bfloat16, cvt8lane_fp32_to_bf16, cvt8lane_bf16_to_fp32, _FOYE_SIMD_CMP_NOT_EQUAL_)
-        _FOYE_SIMD_DEFINE_HALF_MIX_CMP_FUNCION_(less_equal, bfloat16, cvt8lane_fp32_to_bf16, cvt8lane_bf16_to_fp32, _FOYE_SIMD_CMP_LESS_EQUAL_)
-        _FOYE_SIMD_DEFINE_HALF_MIX_CMP_FUNCION_(greater_equal, bfloat16, cvt8lane_fp32_to_bf16, cvt8lane_bf16_to_fp32, _FOYE_SIMD_CMP_GREATER_EQUAL_)
+    _FOYE_SIMD_DEFINE_HALF_MIX_CMP_FUNCION_(not_equal, bfloat16, cvt8lane_fp32_to_bf16, cvt8lane_bf16_to_fp32, _FOYE_SIMD_CMP_NOT_EQUAL_)
+    _FOYE_SIMD_DEFINE_HALF_MIX_CMP_FUNCION_(less_equal, bfloat16, cvt8lane_fp32_to_bf16, cvt8lane_bf16_to_fp32, _FOYE_SIMD_CMP_LESS_EQUAL_)
+    _FOYE_SIMD_DEFINE_HALF_MIX_CMP_FUNCION_(greater_equal, bfloat16, cvt8lane_fp32_to_bf16, cvt8lane_bf16_to_fp32, _FOYE_SIMD_CMP_GREATER_EQUAL_)
 #endif
 
 
@@ -217,7 +214,45 @@ basic_mask<unsigned_simd_type::lane_width, unsigned_simd_type::bit_width> funcna
 #undef DEFINE_LESSGREATER_UNSIGNED_VERSION_2WAY_DISPATCH
 #undef DEFINE_LESSGREATER_UNSIGNED_VERSION
 #endif
+}
 
+namespace fyx::simd
+{
+    template<typename simd_type> requires(is_basic_simd_v<simd_type>)
+    mask_from_simd_t<simd_type> operator == (simd_type lhs, simd_type rhs)
+    {
+        return equal(lhs, rhs);
+    }
+
+    template<typename simd_type> requires(is_basic_simd_v<simd_type>)
+    mask_from_simd_t<simd_type> operator != (simd_type lhs, simd_type rhs)
+    {
+        return bitwise_NOT(equal(lhs, rhs).as_basic_simd<simd_type>()).as_basic_mask();
+    }
+
+    template<typename simd_type> requires(is_basic_simd_v<simd_type>)
+    mask_from_simd_t<simd_type> operator > (simd_type lhs, simd_type rhs)
+    {
+        return greater(lhs, rhs);
+    }
+
+    template<typename simd_type> requires(is_basic_simd_v<simd_type>)
+    mask_from_simd_t<simd_type> operator < (simd_type lhs, simd_type rhs)
+    {
+        return less(lhs, rhs);
+    }
+
+    template<typename simd_type> requires(is_basic_simd_v<simd_type>)
+    mask_from_simd_t<simd_type> operator >= (simd_type lhs, simd_type rhs)
+    {
+        return greater_equal(lhs, rhs);
+    }
+
+    template<typename simd_type> requires(is_basic_simd_v<simd_type>)
+    mask_from_simd_t<simd_type> operator <= (simd_type lhs, simd_type rhs)
+    {
+        return less_equal(lhs, rhs);
+    }
 }
 
 #endif
