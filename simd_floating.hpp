@@ -2432,11 +2432,249 @@ namespace fyx::simd
 #endif
 
 #if defined(FOYE_SIMD_ENABLE_SVML)
-    float32x8 tan(float32x8 input) { return float32x8{ _mm256_tan_ps(input.data) }; }
-    float64x4 tan(float64x4 input) { return float64x4{ _mm256_tan_pd(input.data) }; }
-    float32x4 tan(float32x4 input) { return float32x4{ _mm_tan_ps(input.data) }; }
-    float64x2 tan(float64x2 input) { return float64x2{ _mm_tan_pd(input.data) }; }
+    float32x8 acos(float32x8 input) { return float32x8{ _mm256_acos_ps(input.data) }; }
+    float64x4 acos(float64x4 input) { return float64x4{ _mm256_acos_pd(input.data) }; }
+    float32x4 acos(float32x4 input) { return float32x4{ _mm_acos_ps(input.data) }; }
+    float64x2 acos(float64x2 input) { return float64x2{ _mm_acos_pd(input.data) }; }
 #else
+    namespace detail
+    {
+        template<typename simd_type>
+        simd_type acosF32_soft_simulation(simd_type input)
+        {
+            using sint_simd_t = basic_simd<detail::integral_t<
+                simd_type::scalar_bit_width, true>, simd_type::bit_width>;
+
+            constexpr float coefficients[] = { -0.0187293f, 0.0742610f, -0.2121144f, 1.5707288f };
+            simd_type x = input;
+
+            simd_type negate = where_assign(allzero_bits_as<simd_type>(), load_brocast<simd_type>(1.f),
+                less(x, allzero_bits_as<simd_type>()));
+
+            x = bitwise_AND(x, reinterpret<simd_type>(load_brocast<sint_simd_t>(0x7FFFFFFF)));
+
+            simd_type result = fma(x, load_brocast<simd_type>(coefficients[0]), load_brocast<simd_type>(coefficients[1]));
+            result = fma(x, result, load_brocast<simd_type>(coefficients[2]));
+            result = fma(x, result, load_brocast<simd_type>(coefficients[3]));
+
+            result = multiplies(result, sqrt(minus(load_brocast<simd_type>(1.f), x)));
+            result = multiplies(result, fnma(load_brocast<simd_type>(2.f), negate, load_brocast<simd_type>(1.f)));
+
+            return fma(negate, load_brocast<simd_type>(3.1415926535897932384626f), result);
+        }
+    }
+
+    float32x8 acos(float32x8 input) { return detail::acosF32_soft_simulation(input); }
+    //float64x4 acos(float64x4 input) { return float64x4{ _mm256_acos_pd(input.data) }; }
+    float32x4 acos(float32x4 input) { return detail::acosF32_soft_simulation(input); }
+    //float64x2 acos(float64x2 input) { return float64x2{ _mm_acos_pd(input.data) }; }
+#endif
+#if defined(_FOYE_SIMD_HAS_FP16_)
+    float16x8 acos(float16x8 input)
+    {
+        float32x8 result32 = fyx::simd::acos(fyx::simd::expand<float32x8>(input));
+        return fyx::simd::narrowing<float16x8>(result32);
+    }
+
+    float16x16 acos(float16x16 input)
+    {
+        float32x8 result_low = fyx::simd::acos(fyx::simd::expand_low<float32x8>(input));
+        float32x8 result_high = fyx::simd::acos(fyx::simd::expand_high<float32x8>(input));
+        return fyx::simd::merge(
+            fyx::simd::narrowing<float16x8>(result_low),
+            fyx::simd::narrowing<float16x8>(result_high)
+        );
+    }
+#endif
+#if defined(_FOYE_SIMD_HAS_BF16_)
+    bfloat16x8 acos(bfloat16x8 input)
+    {
+        float32x8 result32 = fyx::simd::acos(fyx::simd::expand<float32x8>(input));
+        return fyx::simd::narrowing<bfloat16x8>(result32);
+    }
+
+    bfloat16x16 acos(bfloat16x16 input)
+    {
+        float32x8 result_low = fyx::simd::acos(fyx::simd::expand_low<float32x8>(input));
+        float32x8 result_high = fyx::simd::acos(fyx::simd::expand_high<float32x8>(input));
+        return fyx::simd::merge(
+            fyx::simd::narrowing<bfloat16x8>(result_low),
+            fyx::simd::narrowing<bfloat16x8>(result_high)
+        );
+    }
+#endif
+
+#if defined(FOYE_SIMD_ENABLE_SVML)
+    float32x8 atan(float32x8 input) { return float32x8{ _mm256_atan_ps(input.data) }; }
+    float64x4 atan(float64x4 input) { return float64x4{ _mm256_atan_pd(input.data) }; }
+    float32x4 atan(float32x4 input) { return float32x4{ _mm_atan_ps(input.data) }; }
+    float64x2 atan(float64x2 input) { return float64x2{ _mm_atan_pd(input.data) }; }
+#else
+    namespace detail
+    {
+        template<typename simd_type>
+        simd_type atanF32_soft_simulation(simd_type input)
+        {
+            using sint_simd_t = basic_simd<detail::integral_t<
+                simd_type::scalar_bit_width, true>, simd_type::bit_width>;
+
+            simd_type xx = input;
+            simd_type sign = where_assign(load_brocast<simd_type>(1.f), load_brocast<simd_type>(-1.f),
+                less(xx, allzero_bits_as<simd_type>()));
+
+            simd_type x = bitwise_AND(xx, reinterpret<simd_type>(load_brocast<sint_simd_t>(0x7FFFFFFF)));
+            simd_type one = load_brocast<simd_type>(1.f);
+
+            mask_from_simd_t<simd_type> above_3pi8 = greater(x, load_brocast<simd_type>(2.414213562373095f));
+            simd_type above_pi8 = bitwise_ANDNOT(above_3pi8.as_basic_simd<simd_type>(),
+                greater(x, load_brocast<simd_type>(0.4142135623730950f)).as_basic_simd<simd_type>());
+
+            simd_type y = allzero_bits_as<simd_type>();
+
+            x = where_assign(x, divide(one, x), above_3pi8);
+            x = where_assign(x, divide(minus(x, one), plus(x, one)), above_pi8.as_basic_mask());
+
+            y = where_assign(y, load_brocast<simd_type>(1.5707963267948966f), above_3pi8);
+            y = where_assign(y, load_brocast<simd_type>(0.7853981633974483f), above_pi8.as_basic_mask());
+
+            simd_type z = multiplies(x, x);
+
+            constexpr float coefficients[] = {
+                0.9999999999999998f,
+                -0.3333333333333329f,
+                0.1999999999987644f,
+                -0.1428571428414554f,
+                0.1111111040546235f,
+                -0.0909087550086485f,
+                0.0769187620504483f,
+                -0.0666107318938757f
+            };
+
+            simd_type result_poly = load_brocast<simd_type>(coefficients[7]);
+            result_poly = fma(z, result_poly, load_brocast<simd_type>(coefficients[6]));
+            result_poly = fma(z, result_poly, load_brocast<simd_type>(coefficients[5]));
+            result_poly = fma(z, result_poly, load_brocast<simd_type>(coefficients[4]));
+            result_poly = fma(z, result_poly, load_brocast<simd_type>(coefficients[3]));
+            result_poly = fma(z, result_poly, load_brocast<simd_type>(coefficients[2]));
+            result_poly = fma(z, result_poly, load_brocast<simd_type>(coefficients[1]));
+            result_poly = fma(z, result_poly, load_brocast<simd_type>(coefficients[0]));
+
+            simd_type result = fma(x, result_poly, y);
+            result = multiplies(result, sign);
+            return result;
+        }
+
+        template<typename simd_type>
+        simd_type atanF64_soft_simulation(simd_type input)
+        {
+            using sint_simd_t = basic_simd<detail::integral_t<
+                simd_type::scalar_bit_width, true>, simd_type::bit_width>;
+
+            simd_type xx = input;
+            simd_type sign = where_assign(load_brocast<simd_type>(1.0), load_brocast<simd_type>(-1.0),
+                less(xx, allzero_bits_as<simd_type>()));
+
+            simd_type x = bitwise_AND(xx, reinterpret<simd_type>(load_brocast<sint_simd_t>(0x7FFFFFFFFFFFFFFF)));
+            simd_type one = load_brocast<simd_type>(1.0);
+
+            constexpr double tan_pi_8 = 0.4142135623730950;
+            constexpr double tan_3pi_8 = 2.414213562373095;
+            constexpr double PI_2 = 1.57079632679489661923;
+            constexpr double PI_4 = 0.78539816339744830962;
+
+            mask_from_simd_t<simd_type> above_3pi_8 = greater(x, load_brocast<simd_type>(tan_3pi_8));
+            mask_from_simd_t<simd_type> above_pi_8 = bitwise_ANDNOT(
+                                                  above_3pi_8.as_basic_simd<simd_type>(),
+                greater(x, load_brocast<simd_type>(tan_pi_8)).as_basic_simd<simd_type>()).as_basic_mask();
+
+            simd_type y = allzero_bits_as<simd_type>();
+
+            x = where_assign(x, divide(one, x), above_3pi_8);
+            x = where_assign(x, divide(minus(x, one), plus(x, one)), above_pi_8);
+
+            y = where_assign(y, load_brocast<simd_type>(PI_2), above_3pi_8);
+            y = where_assign(y, load_brocast<simd_type>(PI_4), above_pi_8);
+
+            simd_type z = multiplies(x, x);
+
+            constexpr double coefficients[] = {
+                1.0,
+                -0.3333333333333333333,
+                0.2,
+                -0.14285714285714285714,
+                0.11111111111111111111,
+                -0.09090909090909090909,
+                0.07692307692307692308,
+                -0.06666666666666666667,
+                0.05882352941176470588,
+                -0.05263157894736842105,
+                0.04761904761904761905,
+                -0.04347826086956521739,
+                0.04000000000000000000
+            };
+
+            simd_type z2 = multiplies(z, z);
+            simd_type z4 = multiplies(z2, z2);
+
+            simd_type p0 = fma(z, load_brocast<simd_type>(coefficients[1]), load_brocast<simd_type>(coefficients[0]));
+            simd_type p1 = fma(z, load_brocast<simd_type>(coefficients[3]), load_brocast<simd_type>(coefficients[2]));
+            simd_type p2 = fma(z, load_brocast<simd_type>(coefficients[5]), load_brocast<simd_type>(coefficients[4]));
+            simd_type p3 = fma(z, load_brocast<simd_type>(coefficients[7]), load_brocast<simd_type>(coefficients[6]));
+            simd_type p4 = fma(z, load_brocast<simd_type>(coefficients[9]), load_brocast<simd_type>(coefficients[8]));
+            simd_type p5 = fma(z, load_brocast<simd_type>(coefficients[11]), load_brocast<simd_type>(coefficients[10]));
+
+            p2 = fma(z2, p3, p2);
+            p4 = fma(z2, p5, p4);
+            p4 = fma(z4, load_brocast<simd_type>(coefficients[12]), p4);
+
+            simd_type poly_result = fma(z2, p1, p0);
+            poly_result = fma(z4, p2, poly_result);
+            poly_result = fma(multiplies(z4, z4), p4, poly_result);
+
+            simd_type result = fma(x, poly_result, y);
+            result = multiplies(result, sign);
+
+            return result;
+        }
+    }
+#endif
+    float32x8 atan(float32x8 input) { return detail::atanF32_soft_simulation(input); }
+    float64x4 atan(float64x4 input) { return detail::atanF64_soft_simulation(input); }
+    float32x4 atan(float32x4 input) { return detail::atanF32_soft_simulation(input); }
+    float64x2 atan(float64x2 input) { return detail::atanF64_soft_simulation(input); }
+#if defined(_FOYE_SIMD_HAS_FP16_)
+    float16x8 atan(float16x8 input)
+    {
+        float32x8 result32 = fyx::simd::atan(fyx::simd::expand<float32x8>(input));
+        return fyx::simd::narrowing<float16x8>(result32);
+    }
+
+    float16x16 atan(float16x16 input)
+    {
+        float32x8 result_low = fyx::simd::atan(fyx::simd::expand_low<float32x8>(input));
+        float32x8 result_high = fyx::simd::atan(fyx::simd::expand_high<float32x8>(input));
+        return fyx::simd::merge(
+            fyx::simd::narrowing<float16x8>(result_low),
+            fyx::simd::narrowing<float16x8>(result_high)
+        );
+    }
+#endif
+#if defined(_FOYE_SIMD_HAS_BF16_)
+    bfloat16x8 atan(bfloat16x8 input)
+    {
+        float32x8 result32 = fyx::simd::atan(fyx::simd::expand<float32x8>(input));
+        return fyx::simd::narrowing<bfloat16x8>(result32);
+    }
+
+    bfloat16x16 atan(bfloat16x16 input)
+    {
+        float32x8 result_low = fyx::simd::atan(fyx::simd::expand_low<float32x8>(input));
+        float32x8 result_high = fyx::simd::atan(fyx::simd::expand_high<float32x8>(input));
+        return fyx::simd::merge(
+            fyx::simd::narrowing<bfloat16x8>(result_low),
+            fyx::simd::narrowing<bfloat16x8>(result_high)
+        );
+    }
 #endif
 
 
