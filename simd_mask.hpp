@@ -415,16 +415,16 @@ namespace fyx::simd
     sint64x2 swap_halves(sint64x2 input) { return sint64x2{ _mm_or_si128(_mm_slli_si128(input.data, 8), _mm_srli_si128(input.data, 8)) }; }
     float32x4 swap_halves(float32x4 input) { return float32x4{ _mm_shuffle_ps(input.data, input.data, _MM_SHUFFLE(1, 0, 3, 2)) }; }
     float64x2 swap_halves(float64x2 input) { return float64x2{ _mm_shuffle_pd(input.data, input.data, 0b01) }; }
-    uint8x32 swap_halves(uint8x32 input) { return uint8x32{ FOYE_SIMD_MERGE_i(FOYE_SIMD_EXTRACT_HIGH_i(input.data), FOYE_SIMD_EXTRACT_LOW_i(input.data)) }; }
-    uint16x16 swap_halves(uint16x16 input) { return uint16x16{ FOYE_SIMD_MERGE_i(FOYE_SIMD_EXTRACT_HIGH_i(input.data), FOYE_SIMD_EXTRACT_LOW_i(input.data)) }; }
-    uint32x8 swap_halves(uint32x8 input) { return uint32x8{ FOYE_SIMD_MERGE_i(FOYE_SIMD_EXTRACT_HIGH_i(input.data), FOYE_SIMD_EXTRACT_LOW_i(input.data)) }; }
-    uint64x4 swap_halves(uint64x4 input) { return uint64x4{ FOYE_SIMD_MERGE_i(FOYE_SIMD_EXTRACT_HIGH_i(input.data), FOYE_SIMD_EXTRACT_LOW_i(input.data)) }; }
-    sint8x32 swap_halves(sint8x32 input) { return sint8x32{ FOYE_SIMD_MERGE_i(FOYE_SIMD_EXTRACT_HIGH_i(input.data), FOYE_SIMD_EXTRACT_LOW_i(input.data)) }; }
-    sint16x16 swap_halves(sint16x16 input) { return sint16x16{ FOYE_SIMD_MERGE_i(FOYE_SIMD_EXTRACT_HIGH_i(input.data), FOYE_SIMD_EXTRACT_LOW_i(input.data)) }; }
-    sint32x8 swap_halves(sint32x8 input) { return sint32x8{ FOYE_SIMD_MERGE_i(FOYE_SIMD_EXTRACT_HIGH_i(input.data), FOYE_SIMD_EXTRACT_LOW_i(input.data)) }; }
-    sint64x4 swap_halves(sint64x4 input) { return sint64x4{ FOYE_SIMD_MERGE_i(FOYE_SIMD_EXTRACT_HIGH_i(input.data), FOYE_SIMD_EXTRACT_LOW_i(input.data)) }; }
-    float32x8 swap_halves(float32x8 input) { return float32x8{ FOYE_SIMD_MERGE_f(FOYE_SIMD_EXTRACT_HIGH_f(input.data), FOYE_SIMD_EXTRACT_LOW_f(input.data)) }; }
-    float64x4 swap_halves(float64x4 input) { return float64x4{ FOYE_SIMD_MERGE_d(FOYE_SIMD_EXTRACT_HIGH_d(input.data), FOYE_SIMD_EXTRACT_LOW_d(input.data)) }; }
+    uint8x32 swap_halves(uint8x32 input) { return uint8x32{ detail::merge(detail::split_high(input.data), detail::split_low(input.data)) }; }
+    uint16x16 swap_halves(uint16x16 input) { return uint16x16{ detail::merge(detail::split_high(input.data), detail::split_low(input.data)) }; }
+    uint32x8 swap_halves(uint32x8 input) { return uint32x8{ detail::merge(detail::split_high(input.data), detail::split_low(input.data)) }; }
+    uint64x4 swap_halves(uint64x4 input) { return uint64x4{ detail::merge(detail::split_high(input.data), detail::split_low(input.data)) }; }
+    sint8x32 swap_halves(sint8x32 input) { return sint8x32{ detail::merge(detail::split_high(input.data), detail::split_low(input.data)) }; }
+    sint16x16 swap_halves(sint16x16 input) { return sint16x16{ detail::merge(detail::split_high(input.data), detail::split_low(input.data)) }; }
+    sint32x8 swap_halves(sint32x8 input) { return sint32x8{ detail::merge(detail::split_high(input.data), detail::split_low(input.data)) }; }
+    sint64x4 swap_halves(sint64x4 input) { return sint64x4{ detail::merge(detail::split_high(input.data), detail::split_low(input.data)) }; }
+    float32x8 swap_halves(float32x8 input) { return float32x8{ detail::merge(detail::split_high(input.data), detail::split_low(input.data)) }; }
+    float64x4 swap_halves(float64x4 input) { return float64x4{ detail::merge(detail::split_high(input.data), detail::split_low(input.data)) }; }
 #if defined(_FOYE_SIMD_HAS_FP16_)
     float16x8 swap_halves(float16x8 input) { return float16x8{ fyx::simd::swap_halves(uint16x8{input.data}) }; }
     float16x16 swap_halves(float16x16 input) { return float16x16{ fyx::simd::swap_halves(uint16x16{input.data}) }; }
