@@ -24,26 +24,10 @@ namespace fyx::simd::test
 #endif
 
 #if defined(FOYE_SIMD_ENABLE_SVML)
-    float32x8 exp2(float32x8 input) { return float32x8{ _mm256_exp2_ps(input.data) }; }
-    float64x4 exp2(float64x4 input) { return float64x4{ _mm256_exp2_pd(input.data) }; }
-    float32x4 exp2(float32x4 input) { return float32x4{ _mm_exp2_ps(input.data) }; }
-    float64x2 exp2(float64x2 input) { return float64x2{ _mm_exp2_pd(input.data) }; }
-#else
-#endif
-
-#if defined(FOYE_SIMD_ENABLE_SVML)
     float32x8 exp10(float32x8 input) { return float32x8{ _mm256_exp10_ps(input.data) }; }
     float64x4 exp10(float64x4 input) { return float64x4{ _mm256_exp10_pd(input.data) }; }
     float32x4 exp10(float32x4 input) { return float32x4{ _mm_exp10_ps(input.data) }; }
     float64x2 exp10(float64x2 input) { return float64x2{ _mm_exp10_pd(input.data) }; }
-#else
-#endif
-
-#if defined(FOYE_SIMD_ENABLE_SVML)
-    float32x8 log2(float32x8 input) { return float32x8{ _mm256_log2_ps(input.data) }; }
-    float64x4 log2(float64x4 input) { return float64x4{ _mm256_log2_pd(input.data) }; }
-    float32x4 log2(float32x4 input) { return float32x4{ _mm_log2_ps(input.data) }; }
-    float64x2 log2(float64x2 input) { return float64x2{ _mm_log2_pd(input.data) }; }
 #else
 #endif
 
@@ -56,19 +40,13 @@ namespace fyx::simd::test
 #endif
 
 #if defined(FOYE_SIMD_ENABLE_SVML)
-    float32x8 acos(float32x8 input) { return float32x8{ _mm256_acos_ps(input.data) }; }
-    float64x4 acos(float64x4 input) { return float64x4{ _mm256_acos_pd(input.data) }; }
-    float32x4 acos(float32x4 input) { return float32x4{ _mm_acos_ps(input.data) }; }
-    float64x2 acos(float64x2 input) { return float64x2{ _mm_acos_pd(input.data) }; }
-#endif
-
-#if defined(FOYE_SIMD_ENABLE_SVML)
-    float32x8 atan(float32x8 input) { return float32x8{ _mm256_atan_ps(input.data) }; }
-    float64x4 atan(float64x4 input) { return float64x4{ _mm256_atan_pd(input.data) }; }
-    float32x4 atan(float32x4 input) { return float32x4{ _mm_atan_ps(input.data) }; }
-    float64x2 atan(float64x2 input) { return float64x2{ _mm_atan_pd(input.data) }; }
+    float32x8 tan(float32x8 input) { return float32x8{ _mm256_tan_ps(input.data) }; }
+    float64x4 tan(float64x4 input) { return float64x4{ _mm256_tan_pd(input.data) }; }
+    float32x4 tan(float32x4 input) { return float32x4{ _mm_tan_ps(input.data) }; }
+    float64x2 tan(float64x2 input) { return float64x2{ _mm_tan_pd(input.data) }; }
 #else
 #endif
+
 
 #if defined(FOYE_SIMD_ENABLE_SVML)
     float32x8 sind(float32x8 input) { return float32x8{ _mm256_sind_ps(input.data) }; }
@@ -167,12 +145,13 @@ namespace fyx::simd::test
 #endif
 
 #if defined(FOYE_SIMD_ENABLE_SVML)
-    float32x8 atan2(float32x8 arg0, float32x8 arg1) { return float32x8{ _mm256_atan2_ps(arg0.data, arg1.data) }; }
-    float64x4 atan2(float64x4 arg0, float64x4 arg1) { return float64x4{ _mm256_atan2_pd(arg0.data, arg1.data) }; }
-    float32x4 atan2(float32x4 arg0, float32x4 arg1) { return float32x4{ _mm_atan2_ps(arg0.data, arg1.data) }; }
-    float64x2 atan2(float64x2 arg0, float64x2 arg1) { return float64x2{ _mm_atan2_pd(arg0.data, arg1.data) }; }
+float32x8 atan2(float32x8 arg0, float32x8 arg1) { return float32x8{ _mm256_atan2_ps(arg0.data, arg1.data) }; }
+float64x4 atan2(float64x4 arg0, float64x4 arg1) { return float64x4{ _mm256_atan2_pd(arg0.data, arg1.data) }; }
+float32x4 atan2(float32x4 arg0, float32x4 arg1) { return float32x4{ _mm_atan2_ps(arg0.data, arg1.data) }; }
+float64x2 atan2(float64x2 arg0, float64x2 arg1) { return float64x2{ _mm_atan2_pd(arg0.data, arg1.data) }; }
 #else
 #endif
+
 }
 
 #endif
