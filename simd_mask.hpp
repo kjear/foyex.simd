@@ -6,6 +6,7 @@
 #include "simd_utility.hpp"
 #include "simd_opt.hpp"
 #include "simd_cmp.hpp"
+#include "simd_interleave.hpp"
 
 namespace fyx::simd
 {
@@ -35,6 +36,32 @@ namespace fyx::simd
             const simd_type zero = fyx::simd::allzero_bits_as<simd_type>();
             return fyx::simd::greater(zero, value);
         }
+    }
+
+    template<typename simd_type> requires(is_basic_simd_v<simd_type>)
+    mask_from_simd_t<simd_type> where_in_range(simd_type value,
+            typename simd_type::scalar_t low, typename simd_type::scalar_t high) 
+    {
+        return where_between(value, load_brocast<simd_type>(low), load_brocast<simd_type>(high));
+    }
+
+    template<int input0_first, int input0_second, int input1_first, int input1_second>
+    requires((input0_first >= 0 && input0_first <= 3) && (input0_second >= 0 && input0_second <= 3)
+    && (input1_first >= 0 && input1_first <= 3) && (input1_second >= 0 && input1_second <= 3))
+    float32x4 shuffle(float32x4 input_0, float32x4 input_1)
+    {
+        return float32x4{ _mm_shuffle_ps(input_0.data, input_1.data,
+            (((input0_first) << 6) | ((input0_second) << 4) |
+                ((input1_first) << 2) | ((input1_second)))) };
+    }
+
+    template<int input_selected, int input1_selected>
+    requires((input_selected == 1 || input_selected == 0) && 
+    (input1_selected == 1 || input1_selected == 0))
+    float64x2 shuffle(float64x2 input_0, float64x2 input_1)
+    {
+        return float64x2{ _mm_shuffle_pd(input_0.data, input_1.data,
+            (((input_selected) << 1) | (input1_selected))) };
     }
 
     namespace detail
@@ -100,7 +127,7 @@ namespace fyx::simd
             else if constexpr (sizeof(scalar_type) == sizeof(std::uint16_t))
             {
                 __m128i result = _mm_blendv_epi8(
-                    source.data, value_to_assign.data,
+                    value_to_assign.data, source.data,
                     _mm_cmpeq_epi16(mask.data, _mm_setzero_si128()));
                 return simd_type{ result };
             }
@@ -138,7 +165,7 @@ namespace fyx::simd
             else if constexpr (sizeof(scalar_type) == sizeof(std::uint16_t))
             {
                 __m256i result = _mm256_blendv_epi8(
-                    source.data, value_to_assign.data,
+                    value_to_assign.data, source.data,
                     _mm256_cmpeq_epi16(mask.data, _mm256_setzero_si256()));
                 return simd_type{ result };
             }
@@ -311,7 +338,120 @@ namespace fyx::simd
         return mask_type{ fyx::simd::bitwise_XOR(usimd_type{ target_mask.data }, usimd_type{ condition_mask.data }) };
     }
 
-    uint8x16 reverse(uint8x16 input) 
+    template<typename simd_type, typename mask_type>
+        requires(fyx::simd::is_basic_simd_v<simd_type>&& fyx::simd::is_basic_mask_v<mask_type>
+#if !defined(_FOYE_SIMD_ENABLE_EMULATED_)
+    && (simd_type::scalar_bit_width == 32 || simd_type::scalar_bit_width == 64)
+#endif
+        && ((simd_type::lane_width == mask_type::lane_width)
+            && simd_type::bit_width == mask_type::bit_width))
+    void where_store(simd_type to_store_vector, mask_type mask, void* mem_addr)
+    {
+        if constexpr (simd_type::scalar_bit_width == 32)
+        {
+            if constexpr (is_256bits_simd_v<simd_type>)
+            {
+                _mm256_maskstore_epi32(reinterpret_cast<int*>(mem_addr),
+                    detail::basic_reinterpret<__m256i>(mask.data),
+                    detail::basic_reinterpret<__m256i>(to_store_vector.data));
+            }
+            else
+            {
+                _mm_maskstore_epi32(reinterpret_cast<int*>(mem_addr),
+                    detail::basic_reinterpret<__m128i>(mask.data),
+                    detail::basic_reinterpret<__m128i>(to_store_vector.data));
+            }
+        }
+        else if constexpr (simd_type::scalar_bit_width == 64)
+        {
+            if constexpr (is_256bits_simd_v<simd_type>)
+            {
+                _mm256_maskstore_epi64(reinterpret_cast<long long*>(mem_addr),
+                    detail::basic_reinterpret<__m256i>(mask.data),
+                    detail::basic_reinterpret<__m256i>(to_store_vector.data));
+            }
+            else
+            {
+                _mm_maskstore_epi64(reinterpret_cast<long long*>(mem_addr),
+                    detail::basic_reinterpret<__m128i>(mask.data),
+                    detail::basic_reinterpret<__m128i>(to_store_vector.data));
+            }
+        }
+        else
+        {
+#if defined(_FOYE_SIMD_ENABLE_EMULATED_)
+#if !defined(_FOYE_SIMD_DISABLE_MASK_LOAD_ERROR)
+            static_assert(simd_type::scalar_bit_width == 32 || simd_type::scalar_bit_width == 64,
+                "Implemented by a large combination of composite instructions, "
+                "there are serious performance issues compared to native instructions"
+                "define _FOYE_SIMD_DISABLE_MASK_LOAD_ERROR to close this error message and enable simulation implementation");
+#else
+            simd_type source = load_unaligned<simd_type>(
+                reinterpret_cast<const typename simd_type::scalar_t*>(mem_addr));
+            simd_type result = where_assign(source, to_store_vector, mask);
+            store_unaligned(result, mem_addr);
+#endif
+#else
+            __assume(false);
+#endif
+        }
+    }
+
+    template<typename simd_type, int index_scale = sizeof(typename simd_type::scalar_t)>
+    requires((simd_type::scalar_bit_width == 32) && is_256bits_simd_v<simd_type>)
+    simd_type load_gather_32i32o(sint32x8 indices, void* mem_addr)
+    {
+        __m256 float_result = _mm256_i32gather_ps(reinterpret_cast<const float*>(mem_addr),
+            indices.data, index_scale);
+        return simd_type{ detail::basic_reinterpret<typename simd_type::vector_t>(float_result) };
+    }
+
+    namespace detail
+    {
+        static const std::array<std::array<std::uint8_t, 16>, 65536>& bytewise_forward_lut = []() -> auto& 
+            {
+                static auto* lut = new std::array<std::array<std::uint8_t, 16>, 65536>;
+
+                for (int bitmask = 0; bitmask < 65536; bitmask++)
+                {
+                    std::array<std::uint8_t, 16> control{};
+                    int j = 0;
+
+                    for (int i = 0; i < 16; i++)
+                    {
+                        if (bitmask & (1 << i))
+                        {
+                            control[j++] = static_cast<std::uint8_t>(i);
+                        }
+                    }
+
+                    for (; j < 16; j++)
+                    {
+                        control[j] = 0;
+                    }
+
+                    (*lut)[bitmask] = control;
+                }
+
+                return *lut;
+            }();
+    }
+
+    template<typename simd_type>
+    requires(is_128bits_simd_v<simd_type>&& simd_type::scalar_bit_width == 8)
+    simd_type bytewise_forward(simd_type source, mask_8x16 select_mask)
+    {
+        __m128i mask = _mm_cmpeq_epi8(select_mask.data, _mm_setzero_si128());
+        int bitmask = _mm_movemask_epi8(_mm_xor_si128(mask, _mm_set1_epi8(0xFF)));
+
+        const std::uint8_t* lut_addr = detail::bytewise_forward_lut[bitmask].data();
+        __m128i shuffle_mask = _mm_load_si128(reinterpret_cast<const __m128i*>(lut_addr));
+        return simd_type{ _mm_shuffle_epi8(source.data, shuffle_mask) };
+    }
+
+
+
+    uint8x16 reverse(uint8x16 input)
     {
         const __m128i mask = _mm_set_epi8(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
         return uint8x16{ _mm_shuffle_epi8(input.data, mask) };
@@ -355,7 +495,8 @@ namespace fyx::simd
         const __m256i mask = _mm256_set_epi8(
             0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
             0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
-        return uint8x32{ _mm256_shuffle_epi8(_mm256_permute2x128_si256(input.data, input.data, 0x01), mask) };
+        return uint8x32{ _mm256_shuffle_epi8(
+            _mm256_permute2x128_si256(input.data, input.data, 0x01), mask) };
     }
 
     uint16x16 reverse(uint16x16 input)
@@ -363,13 +504,15 @@ namespace fyx::simd
         const __m256i mask = _mm256_set_epi8(
             1, 0, 3, 2, 5, 4, 7, 6, 9, 8, 11, 10, 13, 12, 15, 14,
             1, 0, 3, 2, 5, 4, 7, 6, 9, 8, 11, 10, 13, 12, 15, 14);
-        return uint16x16{ _mm256_shuffle_epi8(_mm256_permute2x128_si256(input.data, input.data, 0x01), mask) };
+        return uint16x16{ _mm256_shuffle_epi8(
+            _mm256_permute2x128_si256(input.data, input.data, 0x01), mask) };
     }
 
     uint32x8 reverse(uint32x8 input)
     {
         constexpr int _imm = _MM_SHUFFLE(0, 1, 2, 3);
-        return uint32x8{ _mm256_shuffle_epi32(_mm256_permute2x128_si256(input.data, input.data, 0x01), _imm) };
+        return uint32x8{ _mm256_shuffle_epi32(
+            _mm256_permute2x128_si256(input.data, input.data, 0x01), _imm) };
     }
 
     uint64x4 reverse(uint64x4 input)
@@ -433,6 +576,70 @@ namespace fyx::simd
     bfloat16x8 swap_halves(bfloat16x8 input) { return bfloat16x8{ fyx::simd::swap_halves(uint16x8{input.data}) }; }
     bfloat16x16 swap_halves(bfloat16x16 input) { return bfloat16x16{ fyx::simd::swap_halves(uint16x16{input.data}) }; }
 #endif
+}
+
+namespace fyx::simd
+{
+    template<typename mask_type> requires(is_basic_mask_v<mask_type>)
+    mask_type operator & (mask_type lhs, mask_type rhs)
+    {
+        return where_both(lhs, rhs);
+    }
+
+    template<typename mask_type> requires(is_basic_mask_v<mask_type>)
+    mask_type operator | (mask_type lhs, mask_type rhs)
+    {
+        return where_any(lhs, rhs);
+    }
+
+    template<typename mask_type> requires(is_basic_mask_v<mask_type>)
+    mask_type operator ^ (mask_type lhs, mask_type rhs)
+    {
+        return where_either(lhs, rhs);
+    }
+
+    template<typename mask_type> requires(is_basic_mask_v<mask_type>)
+    mask_type operator == (mask_type lhs, mask_type rhs)
+    {
+        using temp_simd_t = basic_simd<detail::integral_t<
+            mask_type::single_width_bits, false>, mask_8x32::bit_width>;
+        return equal(lhs.as_basic_simd<temp_simd_t>(), rhs.as_basic_simd<temp_simd_t>());
+    }
+
+    template<typename mask_type> requires(is_basic_mask_v<mask_type>)
+    mask_type operator != (mask_type lhs, mask_type rhs)
+    {
+        using temp_simd_t = basic_simd<detail::integral_t<
+            mask_type::single_width_bits, false>, mask_8x32::bit_width>;
+        return not_equal(lhs.as_basic_simd<temp_simd_t>(), rhs.as_basic_simd<temp_simd_t>());
+    }
+
+    template<typename mask_type> requires(is_basic_mask_v<mask_type>)
+    mask_type& operator &= (mask_type& lhs, mask_type rhs)
+    {
+        lhs = where_both(lhs, rhs);
+        return lhs;
+    }
+
+    template<typename mask_type> requires(is_basic_mask_v<mask_type>)
+    mask_type& operator |= (mask_type& lhs, mask_type rhs)
+    {
+        lhs = where_any(lhs, rhs);
+        return lhs;
+    }
+
+    template<typename mask_type> requires(is_basic_mask_v<mask_type>)
+    mask_type& operator ^= (mask_type& lhs, mask_type rhs)
+    {
+        lhs = where_either(lhs, rhs);
+        return lhs;
+    }
+
+    template<typename mask_type> requires(is_basic_mask_v<mask_type>)
+    mask_type operator ! (mask_type mask)
+    {
+        return where_invert(allone_bits_as<mask_type>(), mask);
+    }
 }
 
 #endif
