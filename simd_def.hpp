@@ -48,7 +48,7 @@ namespace fyx::simd
         return (reg[2] & (1 << 19)) != 0;
     }
 
-    int is_AVX_available()
+    bool is_AVX_available()
     {
         std::int32_t reg[4];
         __cpuidex(reg, 1, 0);
@@ -413,93 +413,43 @@ namespace fyx::simd
         );
     }
     
-    template<typename simd_type, typename ... Args> 
-    requires(fyx::simd::is_basic_simd_v<simd_type> && sizeof...(Args) <= simd_type::lane_width
-        && (std::is_constructible_v<typename simd_type::scalar_t, Args> && ...))
-    FOYE_SIMD_PERFORMANCE_MATTER simd_type load_by_each(Args&& ... args)
+    template<typename simd_type, typename ... Args>
+    requires(fyx::simd::is_basic_simd_v<simd_type> && sizeof...(Args) == simd_type::lane_width
+    && (std::is_constructible_v<typename simd_type::scalar_t, Args> && ...))
+    simd_type load_by_each(Args&& ... args)
     {
         using input_scalar_t = typename simd_type::scalar_t;
         using input_vector_t = typename simd_type::vector_t;
-        
-        using setter_invoker = fyx::simd::detail::setter_by_each_invoker<input_vector_t, sizeof(input_scalar_t),
+        using setter_invoker = detail::setter_by_each_invoker<input_vector_t, sizeof(input_scalar_t),
             simd_type::lane_width>;
 
-        alignas(alignof(input_vector_t)) input_scalar_t temp[simd_type::lane_width];
-        auto args_tuple = std::forward_as_tuple(std::forward<Args>(args)...);
-
-        [&]<std::size_t... index>(std::index_sequence<index...>)
-        {
-            ((temp[index] = [&]()
-            {
-                if constexpr (index < sizeof...(Args))
-                {
-#if defined(_FOYE_SIMD_HAS_FP16_)
-                    if constexpr (std::is_same_v<input_scalar_t, fy::float16>)
-                    {
-                        return fy::float16(static_cast<float>(std::get<index>(args_tuple)));
-                    }
-#endif
-#if defined(_FOYE_SIMD_HAS_BF16_)
-                    if constexpr (std::is_same_v<input_scalar_t, fy::bfloat16>)
-                    {
-                        return fy::bfloat16(static_cast<float>(std::get<index>(args_tuple)));
-                    }
-#endif
-                    return static_cast<input_scalar_t>(std::get<index>(args_tuple));
-                }
-                else
-                {
-                    return input_scalar_t{ 0 };
-                }
-            }()), ...);
-        }(std::make_index_sequence<simd_type::lane_width>{});
-
         setter_invoker invoker{};
-
-        return simd_type{
-            [&] <std::size_t... Is>(std::index_sequence<Is...>)
-            {
-#if defined(_FOYE_SIMD_HAS_FP16_)
-            if constexpr (std::is_same_v<input_scalar_t, fy::float16>)
-            {
-                return invoker(std::bit_cast<std::uint16_t>(temp[Is])...);
-            }
+        input_vector_t result{};
+#if defined(_FOYE_SIMD_HAS_FP16_) || defined(_FOYE_SIMD_HAS_BF16_)
+        if constexpr (is_half_basic_simd_v<simd_type>)
+        {
+            result = invoker(std::bit_cast<std::uint16_t>(input_scalar_t{
+                static_cast<float>(std::forward<Args>(args)) }) ...);
+        }
+        else
 #endif
-#if defined(_FOYE_SIMD_HAS_BF16_)
-            if constexpr (std::is_same_v<input_scalar_t, fy::bfloat16>)
-            {
-                return invoker(std::bit_cast<std::uint16_t>(temp[Is])...);
-            }
-#endif
-            return invoker(temp[Is]...);
-            }(std::make_index_sequence<simd_type::lane_width>{})
-        };
+        {
+            result = invoker(static_cast<input_scalar_t>(std::forward<Args>(args))...);
+        }
+        return simd_type{ result };
     }
 
-    template<typename target_simd, typename source_scalar, std::size_t bits_width> 
-    requires(fyx::simd::is_basic_simd_v<target_simd> && (target_simd::bit_width == bits_width))
-    target_simd reinterpret(basic_simd<source_scalar, bits_width> source_vec)
-    {
-        return target_simd{ fyx::simd::detail::basic_reinterpret<typename target_simd::vector_t,
-            typename fyx::simd::basic_simd<source_scalar, bits_width>::vector_t>(source_vec.data) };
-    }
-
-    template<typename mask_type, typename ... Args> 
+    template<typename mask_type, typename ... Args>
     requires(fyx::simd::is_basic_mask_v<mask_type> && (std::is_constructible_v<Args, bool> && ...)
-        && (sizeof...(Args) <= mask_type::lane_width))
-    FOYE_SIMD_PERFORMANCE_MATTER mask_type load_mask_by_each(Args&& ... args)
+    && (sizeof...(Args) == mask_type::lane_width))
+    mask_type load_by_each(Args&& ... args)
     {
-        constexpr std::size_t single_width_bits = mask_type::bit_width / mask_type::lane_width;
-        constexpr std::size_t single_width = single_width_bits / CHAR_BIT;
+        constexpr std::size_t single_width_bits = mask_type::single_width_bits;
+        constexpr std::size_t single_width = mask_type::single_width_bytes;
 
-        using bits_contain_type = std::conditional_t<
-            single_width == 1, std::uint8_t,
-                std::conditional_t<
-                single_width == 2, std::uint16_t,
-                    std::conditional_t<
-                    single_width == 4, std::uint32_t, std::uint64_t>
-                >
-            >;
+        using bits_contain_type = std::conditional_t<single_width == 1, std::uint8_t,
+            std::conditional_t<single_width == 2, std::uint16_t,
+            std::conditional_t<single_width == 4, std::uint32_t, std::uint64_t>>>;
 
         using setter_invoker = fyx::simd::detail::setter_by_each_invoker<
             typename mask_type::vector_t, sizeof(bits_contain_type),
@@ -508,31 +458,20 @@ namespace fyx::simd
         constexpr bits_contain_type true_val{ std::numeric_limits<bits_contain_type>::max() };
         constexpr bits_contain_type false_val{ 0 };
 
-        alignas(alignof(typename mask_type::vector_t)) bits_contain_type temp[mask_type::bit_width];
-        auto args_tuple = std::forward_as_tuple(std::forward<Args>(args)...);
-
-        [&]<std::size_t... index>(std::index_sequence<index...>)
-        {
-            ((temp[index] = [&]()
-            {
-                if constexpr (index < sizeof...(Args))
-                {
-                    return static_cast<bool>(std::get<index>(args_tuple)) ? true_val : false_val;
-                }
-                else
-                {
-                    return false_val;
-                }
-            }()), ...);
-        }(std::make_index_sequence<mask_type::lane_width>{});
-
         setter_invoker invoker{};
-        return mask_type{
-            [&] <std::size_t... Is>(std::index_sequence<Is...>)
-            {
-                return invoker(temp[Is]...);
-            }(std::make_index_sequence<mask_type::lane_width>{})
-        };
+        typename mask_type::vector_t result{};
+        result = invoker((static_cast<bool>(std::forward<Args>(args)) ? true_val : false_val) ...);
+        return mask_type{ result };
+    }
+
+    template<typename target_simd, typename source_simd>
+        requires((is_basic_simd_v<target_simd> || is_basic_mask_v<target_simd>)
+    && (is_basic_simd_v<target_simd> || is_basic_mask_v<target_simd>)
+        && (target_simd::bit_width == source_simd::bit_width))
+        target_simd reinterpret(source_simd source_vec)
+    {
+        return target_simd{ detail::basic_reinterpret<
+            typename target_simd::vector_t>(source_vec.data) };
     }
 
     template<typename source_scalar, std::size_t input_width>
@@ -575,8 +514,8 @@ namespace fyx::simd
     }
 
     template<std::size_t index, typename mask_type> 
-    requires(fyx::simd::is_basic_simd_v<mask_type> && (index <= (mask_type::lane_width - 1) && index >= 0))
-    bool extract_single_from(mask_type input)
+    requires(fyx::simd::is_basic_mask_v<mask_type> && (index <= (mask_type::lane_width - 1) && index >= 0))
+    bool extract_single_from_mask(mask_type input)
     {
         constexpr std::size_t single_width_bits = mask_type::bit_width / mask_type::lane_width;
         constexpr std::size_t single_width = single_width_bits / CHAR_BIT;
@@ -638,6 +577,64 @@ namespace fyx::simd
 
     template<typename simd_type>
     using mask_from_simd_t = basic_mask<simd_type::lane_width, simd_type::bit_width>;
+
+    template<typename simd_type>
+    simd_type randombytes_as()
+    {
+        constexpr std::size_t batch_count = simd_type::bit_width / 64;
+        alignas(alignof(typename simd_type::vector_t)) union
+        {
+            typename simd_type::scalar_t scalar_[simd_type::lane_width];
+            unsigned long long u64_[batch_count];
+        } tempbuffer{};
+
+        for (std::size_t i = 0; i < batch_count; ++i)
+        {
+            bool success{ false };
+            do
+            {
+                success = _rdseed64_step(&(tempbuffer.u64_[i]));
+            } while (!success);
+        }
+
+        return load_aligned<simd_type>(tempbuffer.scalar_);
+    }
+
+    template<typename simd_type> requires(is_basic_simd_v<simd_type>)
+    std::string format(simd_type source)
+    {
+        constexpr std::size_t lane_width = simd_type::lane_width;
+        return [&]<std::size_t... Indices>(std::index_sequence<Indices...>)
+        {
+            using extract_type = typename simd_type::scalar_t;
+            using format_type = std::conditional_t<is_half_basic_simd_v<simd_type>, float, extract_type>;
+            std::string str{ '[' };
+            ((str.append(std::format("{}{}",
+                static_cast<format_type>(extract_single_from<Indices>(source)),
+                (Indices == lane_width - 1) ? "]" : ", "))), ...);
+            return str;
+        }(std::make_index_sequence<lane_width>{});
+    }
+
+    template<typename simd_type> requires(is_basic_mask_v<simd_type>)
+    std::string format(simd_type source)
+    {
+        constexpr std::size_t lane_width = simd_type::lane_width;
+        return [&]<std::size_t... Indices>(std::index_sequence<Indices...>)
+        {
+            std::string str{ '[' };
+            ((str.append(std::format("{}{}",
+                (extract_single_from_mask<Indices>(source)
+                    ? '1'
+                    : '0'),
+                (Indices == lane_width - 1) ? "]" : ", "))), ...);
+            return str;
+        }(std::make_index_sequence<lane_width>{});
+    }
+
+    
+
+
 }
 
 #endif
