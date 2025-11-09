@@ -9,6 +9,8 @@
 #define _FOYE_SIMD_ENABLE_CVTEPX64_PD_AVX2_EMULATED
 // #define _FOYE_SIMD_DISABLE_MASK_LOAD_ERROR
 
+#pragma warning(push)
+#pragma warning(disable : 4309)
 #include "simd_def.hpp"
 #include "simd_cmp.hpp"
 #include "simd_opt.hpp"
@@ -17,6 +19,7 @@
 #include "simd_interleave.hpp"
 #include "simd_floating.hpp"
 #include "simd_cvt.hpp"
+#pragma warning(pop)
 
 #include <random>
 
@@ -48,7 +51,6 @@ namespace fyx::simd::test
 
 		return fyx::simd::load_unaligned<vector_type>(arr);
 	}
-
 }
 
 namespace fyx::simd
@@ -118,11 +120,7 @@ namespace fyx::simd
     {
         std::cout << std::format("low: {}, high: {}", u4x2.low(), u4x2.high()) << std::endl;
     }
-
-
 }
-
-
 
 namespace fyx::simd
 {
@@ -133,8 +131,6 @@ namespace fyx::simd
         std::cout << fyx::simd::format(source) << std::endl;
     }
 }
-
-
 
 template<typename T, std::size_t N>
 void print_array(const T(&arr)[N])
