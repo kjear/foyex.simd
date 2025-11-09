@@ -1915,7 +1915,7 @@ namespace fyx::simd
     }
 
 
-    uint8x16 interleave_even(uint8x32 input)
+    uint8x16 interleave_split_even(uint8x32 input)
     {
         __m256i vsrc = input.data;
         const __m128i even_mask = _mm_set_epi8(
@@ -1928,7 +1928,7 @@ namespace fyx::simd
             _mm_shuffle_epi8(detail::split_high(vsrc), even_mask)) };
     }
 
-    uint16x8 interleave_even(uint16x16 input)
+    uint16x8 interleave_split_even(uint16x16 input)
     {
         __m256i vsrc = input.data;
         const __m128i even_mask = _mm_set_epi8(
@@ -1941,7 +1941,7 @@ namespace fyx::simd
             _mm_shuffle_epi8(detail::split_high(vsrc), even_mask)) };
     }
 
-    uint32x4 interleave_even(uint32x8 input)
+    uint32x4 interleave_split_even(uint32x8 input)
     {
         __m256i vsrc = input.data;
         return uint32x4{ _mm_unpacklo_epi64(
@@ -1949,7 +1949,7 @@ namespace fyx::simd
             _mm_shuffle_epi32(detail::split_high(vsrc), _MM_SHUFFLE(2, 0, 2, 0))) };
     }
 
-    uint64x2 interleave_even(uint64x4 input)
+    uint64x2 interleave_split_even(uint64x4 input)
     {
         __m256i vsrc = input.data;
         __m256i permuted = _mm256_permute4x64_epi64(vsrc, 0x08);
@@ -1957,12 +1957,12 @@ namespace fyx::simd
         return uint64x2{ vdst };
     }
 
-    sint8x16 interleave_even(sint8x32 input) { return sint8x16{ fyx::simd::interleave_even(uint8x32{ input.data }) }; }
-    sint16x8 interleave_even(sint16x16 input) { return sint16x8{ fyx::simd::interleave_even(uint16x16{ input.data }) }; }
-    sint32x4 interleave_even(sint32x8 input) { return sint32x4{ fyx::simd::interleave_even(uint32x8{ input.data }) }; }
-    sint64x2 interleave_even(sint64x4 input) { return sint64x2{ fyx::simd::interleave_even(uint64x4{ input.data }) }; }
+    sint8x16 interleave_split_even(sint8x32 input) { return sint8x16{ fyx::simd::interleave_split_even(uint8x32{ input.data }) }; }
+    sint16x8 interleave_split_even(sint16x16 input) { return sint16x8{ fyx::simd::interleave_split_even(uint16x16{ input.data }) }; }
+    sint32x4 interleave_split_even(sint32x8 input) { return sint32x4{ fyx::simd::interleave_split_even(uint32x8{ input.data }) }; }
+    sint64x2 interleave_split_even(sint64x4 input) { return sint64x2{ fyx::simd::interleave_split_even(uint64x4{ input.data }) }; }
 
-    float32x4 interleave_even(float32x8 input)
+    float32x4 interleave_split_even(float32x8 input)
     {
         __m256 vsrc = input.data;
         __m128 low = detail::split_low(vsrc);
@@ -1970,7 +1970,7 @@ namespace fyx::simd
         return float32x4{ _mm_shuffle_ps(low, high, _MM_SHUFFLE(2, 0, 2, 0)) };
     }
 
-    float64x2 interleave_even(float64x4 input)
+    float64x2 interleave_split_even(float64x4 input)
     {
         __m256d vsrc = input.data;
         __m256d permuted = _mm256_permute4x64_pd(vsrc, 0x08);
@@ -1978,14 +1978,14 @@ namespace fyx::simd
         return float64x2{ vdst };
     }
 #if defined(_FOYE_SIMD_HAS_FP16_)
-    float16x8 interleave_even(float16x16 input) { return float16x8{ fyx::simd::interleave_even(uint16x16{ input.data }) }; }
+    float16x8 interleave_even(float16x16 input) { return float16x8{ fyx::simd::interleave_split_even(uint16x16{ input.data }) }; }
 #endif
-#if defined(_FOYE_SIMD_HAS_FP16_)
-    bfloat16x8 interleave_even(bfloat16x16 input) { return bfloat16x8{ fyx::simd::interleave_even(uint16x16{ input.data }) }; }
+#if defined(_FOYE_SIMD_HAS_BF16_)
+    bfloat16x8 interleave_even(bfloat16x16 input) { return bfloat16x8{ fyx::simd::interleave_split_even(uint16x16{ input.data }) }; }
 #endif
 
 
-    uint8x16 interleave_odd(uint8x32 input)
+    uint8x16 interleave_split_odd(uint8x32 input)
     {
         __m256i vsrc = input.data;
         const __m128i odd_mask = _mm_set_epi8(
@@ -1998,7 +1998,7 @@ namespace fyx::simd
             _mm_shuffle_epi8(detail::split_high(vsrc), odd_mask)) };
     }
 
-    uint16x8 interleave_odd(uint16x16 input)
+    uint16x8 interleave_split_odd(uint16x16 input)
     {
         __m256i vsrc = input.data;
         const __m128i odd_mask = _mm_set_epi8(
@@ -2011,7 +2011,7 @@ namespace fyx::simd
             _mm_shuffle_epi8(detail::split_high(vsrc), odd_mask)) };
     }
 
-    uint32x4 interleave_odd(uint32x8 input)
+    uint32x4 interleave_split_odd(uint32x8 input)
     {
         __m256i vsrc = input.data;
         return uint32x4{ _mm_unpacklo_epi64(
@@ -2019,7 +2019,7 @@ namespace fyx::simd
             _mm_shuffle_epi32(detail::split_high(vsrc), _MM_SHUFFLE(3, 1, 3, 1))) };
     }
 
-    uint64x2 interleave_odd(uint64x4 input)
+    uint64x2 interleave_split_odd(uint64x4 input)
     {
         __m256i vsrc = input.data;
         __m256i permuted = _mm256_permute4x64_epi64(vsrc, 0x0D);
@@ -2027,12 +2027,12 @@ namespace fyx::simd
         return uint64x2{ vdst };
     }
 
-    sint8x16 interleave_odd(sint8x32 input) { return sint8x16{ fyx::simd::interleave_odd(uint8x32{ input.data }) }; }
-    sint16x8 interleave_odd(sint16x16 input) { return sint16x8{ fyx::simd::interleave_odd(uint16x16{ input.data }) }; }
-    sint32x4 interleave_odd(sint32x8 input) { return sint32x4{ fyx::simd::interleave_odd(uint32x8{ input.data }) }; }
-    sint64x2 interleave_odd(sint64x4 input) { return sint64x2{ fyx::simd::interleave_odd(uint64x4{ input.data }) }; }
+    sint8x16 interleave_split_odd(sint8x32 input) { return sint8x16{ fyx::simd::interleave_split_odd(uint8x32{ input.data }) }; }
+    sint16x8 interleave_split_odd(sint16x16 input) { return sint16x8{ fyx::simd::interleave_split_odd(uint16x16{ input.data }) }; }
+    sint32x4 interleave_split_odd(sint32x8 input) { return sint32x4{ fyx::simd::interleave_split_odd(uint32x8{ input.data }) }; }
+    sint64x2 interleave_split_odd(sint64x4 input) { return sint64x2{ fyx::simd::interleave_split_odd(uint64x4{ input.data }) }; }
 
-    float32x4 interleave_odd(float32x8 input)
+    float32x4 interleave_split_odd(float32x8 input)
     {
         __m256 vsrc = input.data;
         return float32x4{ _mm_shuffle_ps(
@@ -2041,7 +2041,7 @@ namespace fyx::simd
             _MM_SHUFFLE(3, 1, 3, 1)) };
     }
 
-    float64x2 interleave_odd(float64x4 input)
+    float64x2 interleave_split_odd(float64x4 input)
     {
         __m256d vsrc = input.data;
         __m256d permuted = _mm256_permute4x64_pd(vsrc, 0x0D);
@@ -2050,10 +2050,10 @@ namespace fyx::simd
     }
 
 #if defined(_FOYE_SIMD_HAS_FP16_)
-    float16x8 interleave_odd(float16x16 input) { return float16x8{ fyx::simd::interleave_odd(uint16x16{ input.data }) }; }
+    float16x8 interleave_split_odd(float16x16 input) { return float16x8{ fyx::simd::interleave_split_odd(uint16x16{ input.data }) }; }
 #endif
-#if defined(_FOYE_SIMD_HAS_FP16_)
-    bfloat16x8 interleave_odd(bfloat16x16 input) { return bfloat16x8{ fyx::simd::interleave_odd(uint16x16{ input.data }) }; }
+#if defined(_FOYE_SIMD_HAS_BF16_)
+    bfloat16x8 interleave_split_odd(bfloat16x16 input) { return bfloat16x8{ fyx::simd::interleave_split_odd(uint16x16{ input.data }) }; }
 #endif
 
     uint8x32 interleave_concat(uint8x16 odd_begin, uint8x16 src2)
@@ -2161,7 +2161,7 @@ namespace fyx::simd
                 fyx::simd::reinterpret<uint16x8>(src2)));
     }
 #endif
-#if defined(_FOYE_SIMD_HAS_FP16_)
+#if defined(_FOYE_SIMD_HAS_BF16_)
     bfloat16x16 interleave_concat(bfloat16x8 odd_begin, bfloat16x8 src2)
     {
         return fyx::simd::reinterpret<bfloat16x16>(
