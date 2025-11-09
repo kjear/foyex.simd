@@ -1957,10 +1957,17 @@ namespace fyx::simd
         return uint64x2{ vdst };
     }
 
-    sint8x16 interleave_split_even(sint8x32 input) { return sint8x16{ fyx::simd::interleave_split_even(uint8x32{ input.data }) }; }
-    sint16x8 interleave_split_even(sint16x16 input) { return sint16x8{ fyx::simd::interleave_split_even(uint16x16{ input.data }) }; }
-    sint32x4 interleave_split_even(sint32x8 input) { return sint32x4{ fyx::simd::interleave_split_even(uint32x8{ input.data }) }; }
-    sint64x2 interleave_split_even(sint64x4 input) { return sint64x2{ fyx::simd::interleave_split_even(uint64x4{ input.data }) }; }
+    sint8x16 interleave_split_even(sint8x32 input) 
+    { return sint8x16{ fyx::simd::interleave_split_even(uint8x32{ input.data }) }; }
+
+    sint16x8 interleave_split_even(sint16x16 input) 
+    { return sint16x8{ fyx::simd::interleave_split_even(uint16x16{ input.data }) }; }
+
+    sint32x4 interleave_split_even(sint32x8 input) 
+    { return sint32x4{ fyx::simd::interleave_split_even(uint32x8{ input.data }) }; }
+
+    sint64x2 interleave_split_even(sint64x4 input) 
+    { return sint64x2{ fyx::simd::interleave_split_even(uint64x4{ input.data }) }; }
 
     float32x4 interleave_split_even(float32x8 input)
     {
@@ -1978,10 +1985,12 @@ namespace fyx::simd
         return float64x2{ vdst };
     }
 #if defined(_FOYE_SIMD_HAS_FP16_)
-    float16x8 interleave_even(float16x16 input) { return float16x8{ fyx::simd::interleave_split_even(uint16x16{ input.data }) }; }
+    float16x8 interleave_even(float16x16 input) 
+    { return float16x8{ fyx::simd::interleave_split_even(uint16x16{ input.data }) }; }
 #endif
 #if defined(_FOYE_SIMD_HAS_BF16_)
-    bfloat16x8 interleave_even(bfloat16x16 input) { return bfloat16x8{ fyx::simd::interleave_split_even(uint16x16{ input.data }) }; }
+    bfloat16x8 interleave_even(bfloat16x16 input) 
+    { return bfloat16x8{ fyx::simd::interleave_split_even(uint16x16{ input.data }) }; }
 #endif
 
 
@@ -2027,10 +2036,17 @@ namespace fyx::simd
         return uint64x2{ vdst };
     }
 
-    sint8x16 interleave_split_odd(sint8x32 input) { return sint8x16{ fyx::simd::interleave_split_odd(uint8x32{ input.data }) }; }
-    sint16x8 interleave_split_odd(sint16x16 input) { return sint16x8{ fyx::simd::interleave_split_odd(uint16x16{ input.data }) }; }
-    sint32x4 interleave_split_odd(sint32x8 input) { return sint32x4{ fyx::simd::interleave_split_odd(uint32x8{ input.data }) }; }
-    sint64x2 interleave_split_odd(sint64x4 input) { return sint64x2{ fyx::simd::interleave_split_odd(uint64x4{ input.data }) }; }
+    sint8x16 interleave_split_odd(sint8x32 input) 
+    { return sint8x16{ fyx::simd::interleave_split_odd(uint8x32{ input.data }) }; }
+
+    sint16x8 interleave_split_odd(sint16x16 input)
+    { return sint16x8{ fyx::simd::interleave_split_odd(uint16x16{ input.data }) }; }
+
+    sint32x4 interleave_split_odd(sint32x8 input) 
+    { return sint32x4{ fyx::simd::interleave_split_odd(uint32x8{ input.data }) }; }
+
+    sint64x2 interleave_split_odd(sint64x4 input) 
+    { return sint64x2{ fyx::simd::interleave_split_odd(uint64x4{ input.data }) }; }
 
     float32x4 interleave_split_odd(float32x8 input)
     {
@@ -2050,10 +2066,12 @@ namespace fyx::simd
     }
 
 #if defined(_FOYE_SIMD_HAS_FP16_)
-    float16x8 interleave_split_odd(float16x16 input) { return float16x8{ fyx::simd::interleave_split_odd(uint16x16{ input.data }) }; }
+    float16x8 interleave_split_odd(float16x16 input) 
+    { return float16x8{ fyx::simd::interleave_split_odd(uint16x16{ input.data }) }; }
 #endif
 #if defined(_FOYE_SIMD_HAS_BF16_)
-    bfloat16x8 interleave_split_odd(bfloat16x16 input) { return bfloat16x8{ fyx::simd::interleave_split_odd(uint16x16{ input.data }) }; }
+    bfloat16x8 interleave_split_odd(bfloat16x16 input) 
+    { return bfloat16x8{ fyx::simd::interleave_split_odd(uint16x16{ input.data }) }; }
 #endif
 
     uint8x32 interleave_concat(uint8x16 odd_begin, uint8x16 src2)
@@ -2169,6 +2187,108 @@ namespace fyx::simd
                 fyx::simd::reinterpret<uint16x8>(odd_begin),
                 fyx::simd::reinterpret<uint16x8>(src2)));
     }
+#endif
+
+
+
+    uint8x16 interleave_concat_low(uint8x16 odd_begin, uint8x16 src2) { return uint8x16{ _mm_unpacklo_epi8(odd_begin.data, src2.data) }; }
+    uint16x8 interleave_concat_low(uint16x8 odd_begin, uint16x8 src2) { return uint16x8{ _mm_unpacklo_epi16(odd_begin.data, src2.data) }; }
+    uint32x4 interleave_concat_low(uint32x4 odd_begin, uint32x4 src2) { return uint32x4{ _mm_unpacklo_epi32(odd_begin.data, src2.data) }; }
+    uint64x2 interleave_concat_low(uint64x2 odd_begin, uint64x2 src2) { return uint64x2{ _mm_unpacklo_epi64(odd_begin.data, src2.data) }; }
+    sint8x16 interleave_concat_low(sint8x16 odd_begin, sint8x16 src2) { return sint8x16{ _mm_unpacklo_epi8(odd_begin.data, src2.data) }; }
+    sint16x8 interleave_concat_low(sint16x8 odd_begin, sint16x8 src2) { return sint16x8{ _mm_unpacklo_epi16(odd_begin.data, src2.data) }; }
+    sint32x4 interleave_concat_low(sint32x4 odd_begin, sint32x4 src2) { return sint32x4{ _mm_unpacklo_epi32(odd_begin.data, src2.data) }; }
+    sint64x2 interleave_concat_low(sint64x2 odd_begin, sint64x2 src2) { return sint64x2{ _mm_unpacklo_epi64(odd_begin.data, src2.data) }; }
+    float32x4 interleave_concat_low(float32x4 odd_begin, float32x4 src2) { return float32x4{ _mm_unpacklo_ps(odd_begin.data, src2.data) }; }
+    float64x2 interleave_concat_low(float64x2 odd_begin, float64x2 src2) { return float64x2{ _mm_unpacklo_pd(odd_begin.data, src2.data) }; }
+
+    uint8x16 interleave_concat_high(uint8x16 odd_begin, uint8x16 src2) { return uint8x16{ _mm_unpackhi_epi8(odd_begin.data, src2.data) }; }
+    uint16x8 interleave_concat_high(uint16x8 odd_begin, uint16x8 src2) { return uint16x8{ _mm_unpackhi_epi16(odd_begin.data, src2.data) }; }
+    uint32x4 interleave_concat_high(uint32x4 odd_begin, uint32x4 src2) { return uint32x4{ _mm_unpackhi_epi32(odd_begin.data, src2.data) }; }
+    uint64x2 interleave_concat_high(uint64x2 odd_begin, uint64x2 src2) { return uint64x2{ _mm_unpackhi_epi64(odd_begin.data, src2.data) }; }
+    sint8x16 interleave_concat_high(sint8x16 odd_begin, sint8x16 src2) { return sint8x16{ _mm_unpackhi_epi8(odd_begin.data, src2.data) }; }
+    sint16x8 interleave_concat_high(sint16x8 odd_begin, sint16x8 src2) { return sint16x8{ _mm_unpackhi_epi16(odd_begin.data, src2.data) }; }
+    sint32x4 interleave_concat_high(sint32x4 odd_begin, sint32x4 src2) { return sint32x4{ _mm_unpackhi_epi32(odd_begin.data, src2.data) }; }
+    sint64x2 interleave_concat_high(sint64x2 odd_begin, sint64x2 src2) { return sint64x2{ _mm_unpackhi_epi64(odd_begin.data, src2.data) }; }
+    float32x4 interleave_concat_high(float32x4 odd_begin, float32x4 src2) { return float32x4{ _mm_unpackhi_ps(odd_begin.data, src2.data) }; }
+    float64x2 interleave_concat_high(float64x2 odd_begin, float64x2 src2) { return float64x2{ _mm_unpackhi_pd(odd_begin.data, src2.data) }; }
+    
+    uint8x32 interleave_concat_low_per_half(uint8x32 odd_begin, uint8x32 src2) { return uint8x32{ _mm256_unpacklo_epi8(odd_begin.data, src2.data) }; }
+    uint16x16 interleave_concat_low_per_half(uint16x16 odd_begin, uint16x16 src2) { return uint16x16{ _mm256_unpacklo_epi16(odd_begin.data, src2.data) }; }
+    uint32x8 interleave_concat_low_per_half(uint32x8 odd_begin, uint32x8 src2) { return uint32x8{ _mm256_unpacklo_epi32(odd_begin.data, src2.data) }; }
+    uint64x4 interleave_concat_low_per_half(uint64x4 odd_begin, uint64x4 src2) { return uint64x4{ _mm256_unpacklo_epi64(odd_begin.data, src2.data) }; }
+    sint8x32 interleave_concat_low_per_half(sint8x32 odd_begin, sint8x32 src2) { return sint8x32{ _mm256_unpacklo_epi8(odd_begin.data, src2.data) }; }
+    sint16x16 interleave_concat_low_per_half(sint16x16 odd_begin, sint16x16 src2) { return sint16x16{ _mm256_unpacklo_epi16(odd_begin.data, src2.data) }; }
+    sint32x8 interleave_concat_low_per_half(sint32x8 odd_begin, sint32x8 src2) { return sint32x8{ _mm256_unpacklo_epi32(odd_begin.data, src2.data) }; }
+    sint64x4 interleave_concat_low_per_half(sint64x4 odd_begin, sint64x4 src2) { return sint64x4{ _mm256_unpacklo_epi64(odd_begin.data, src2.data) }; }
+    float32x8 interleave_concat_low_per_half(float32x8 odd_begin, float32x8 src2) { return float32x8{ _mm256_unpacklo_ps(odd_begin.data, src2.data) }; }
+    float64x4 interleave_concat_low_per_half(float64x4 odd_begin, float64x4 src2) { return float64x4{ _mm256_unpacklo_pd(odd_begin.data, src2.data) }; }
+
+    uint8x32 interleave_concat_high_per_half(uint8x32 odd_begin, uint8x32 src2) { return uint8x32{ _mm256_unpackhi_epi8(odd_begin.data, src2.data) }; }
+    uint16x16 interleave_concat_high_per_half(uint16x16 odd_begin, uint16x16 src2) { return uint16x16{ _mm256_unpackhi_epi16(odd_begin.data, src2.data) }; }
+    uint32x8 interleave_concat_high_per_half(uint32x8 odd_begin, uint32x8 src2) { return uint32x8{ _mm256_unpackhi_epi32(odd_begin.data, src2.data) }; }
+    uint64x4 interleave_concat_high_per_half(uint64x4 odd_begin, uint64x4 src2) { return uint64x4{ _mm256_unpackhi_epi64(odd_begin.data, src2.data) }; }
+    sint8x32 interleave_concat_high_per_half(sint8x32 odd_begin, sint8x32 src2) { return sint8x32{ _mm256_unpackhi_epi8(odd_begin.data, src2.data) }; }
+    sint16x16 interleave_concat_high_per_half(sint16x16 odd_begin, sint16x16 src2) { return sint16x16{ _mm256_unpackhi_epi16(odd_begin.data, src2.data) }; }
+    sint32x8 interleave_concat_high_per_half(sint32x8 odd_begin, sint32x8 src2) { return sint32x8{ _mm256_unpackhi_epi32(odd_begin.data, src2.data) }; }
+    sint64x4 interleave_concat_high_per_half(sint64x4 odd_begin, sint64x4 src2) { return sint64x4{ _mm256_unpackhi_epi64(odd_begin.data, src2.data) }; }
+    float32x8 interleave_concat_high_per_half(float32x8 odd_begin, float32x8 src2) { return float32x8{ _mm256_unpackhi_ps(odd_begin.data, src2.data) }; }
+    float64x4 interleave_concat_high_per_half(float64x4 odd_begin, float64x4 src2) { return float64x4{ _mm256_unpackhi_pd(odd_begin.data, src2.data) }; }
+
+#if defined(_FOYE_SIMD_HAS_FP16_)
+    float16x8 interleave_concat_low(float16x8 odd_begin, float16x8 src2) 
+    { return reinterpret<float16x8>(interleave_concat_low(reinterpret<uint16x8>(odd_begin), reinterpret<uint16x8>(src2))); }
+    float16x8 interleave_concat_high(float16x8 odd_begin, float16x8 src2) 
+    { return reinterpret<float16x8>(interleave_concat_high(reinterpret<uint16x8>(odd_begin), reinterpret<uint16x8>(src2))); }
+    float16x16 interleave_concat_low_per_half(float16x16 odd_begin, float16x16 src2) 
+    { return reinterpret<float16x16>(interleave_concat_low_per_half(reinterpret<uint16x16>(odd_begin), reinterpret<uint16x16>(src2))); }
+    float16x16 interleave_concat_high_per_half(float16x16 odd_begin, float16x16 src2) 
+    { return reinterpret<float16x16>(interleave_concat_high_per_half(reinterpret<uint16x16>(odd_begin), reinterpret<uint16x16>(src2))); }
+
+#endif
+#if defined(_FOYE_SIMD_HAS_BF16_)
+    bfloat16x8 interleave_concat_low(bfloat16x8 odd_begin, bfloat16x8 src2) 
+    { return reinterpret<bfloat16x8>(interleave_concat_low(reinterpret<uint16x8>(odd_begin), reinterpret<uint16x8>(src2))); }
+    bfloat16x8 interleave_concat_high(bfloat16x8 odd_begin, bfloat16x8 src2) 
+    { return reinterpret<bfloat16x8>(interleave_concat_high(reinterpret<uint16x8>(odd_begin), reinterpret<uint16x8>(src2))); }
+    bfloat16x16 interleave_concat_low_per_half(bfloat16x16 odd_begin, bfloat16x16 src2) 
+    { return reinterpret<bfloat16x16>(interleave_concat_low_per_half(reinterpret<uint16x16>(odd_begin), reinterpret<uint16x16>(src2))); }
+    bfloat16x16 interleave_concat_high_per_half(bfloat16x16 odd_begin, bfloat16x16 src2) 
+    { return reinterpret<bfloat16x16>(interleave_concat_high_per_half(reinterpret<uint16x16>(odd_begin), reinterpret<uint16x16>(src2))); }
+#endif
+
+
+#if defined(_FOYE_SIMD_ENABLE_EMULATED_)
+    uint8x32 interleave_concat_low(uint8x32 odd_begin, uint8x32 src2) { return interleave_concat(odd_begin.low_part(), src2.low_part()); }
+    uint16x16 interleave_concat_low(uint16x16 odd_begin, uint16x16 src2)  { return interleave_concat(odd_begin.low_part(), src2.low_part()); }
+    uint32x8 interleave_concat_low(uint32x8 odd_begin, uint32x8 src2) { return interleave_concat(odd_begin.low_part(), src2.low_part()); }
+    uint64x4 interleave_concat_low(uint64x4 odd_begin, uint64x4 src2) { return interleave_concat(odd_begin.low_part(), src2.low_part()); }
+    sint8x32 interleave_concat_low(sint8x32 odd_begin, sint8x32 src2) { return interleave_concat(odd_begin.low_part(), src2.low_part()); }
+    sint16x16 interleave_concat_low(sint16x16 odd_begin, sint16x16 src2) { return interleave_concat(odd_begin.low_part(), src2.low_part()); }
+    sint32x8 interleave_concat_low(sint32x8 odd_begin, sint32x8 src2) { return interleave_concat(odd_begin.low_part(), src2.low_part()); }
+    sint64x4 interleave_concat_low(sint64x4 odd_begin, sint64x4 src2) { return interleave_concat(odd_begin.low_part(), src2.low_part()); }
+    float32x8 interleave_concat_low(float32x8 odd_begin, float32x8 src2) { return interleave_concat(odd_begin.low_part(), src2.low_part()); }
+    float64x4 interleave_concat_low(float64x4 odd_begin, float64x4 src2) { return interleave_concat(odd_begin.low_part(), src2.low_part()); }
+
+    uint8x32 interleave_concat_high(uint8x32 odd_begin, uint8x32 src2) { return interleave_concat(odd_begin.high_part(), src2.high_part()); }
+    uint16x16 interleave_concat_high(uint16x16 odd_begin, uint16x16 src2) { return interleave_concat(odd_begin.high_part(), src2.high_part()); }
+    uint32x8 interleave_concat_high(uint32x8 odd_begin, uint32x8 src2) { return interleave_concat(odd_begin.high_part(), src2.high_part()); }
+    uint64x4 interleave_concat_high(uint64x4 odd_begin, uint64x4 src2) { return interleave_concat(odd_begin.high_part(), src2.high_part()); }
+    sint8x32 interleave_concat_high(sint8x32 odd_begin, sint8x32 src2) { return interleave_concat(odd_begin.high_part(), src2.high_part()); }
+    sint16x16 interleave_concat_high(sint16x16 odd_begin, sint16x16 src2) { return interleave_concat(odd_begin.high_part(), src2.high_part()); }
+    sint32x8 interleave_concat_high(sint32x8 odd_begin, sint32x8 src2) { return interleave_concat(odd_begin.high_part(), src2.high_part()); }
+    sint64x4 interleave_concat_high(sint64x4 odd_begin, sint64x4 src2) { return interleave_concat(odd_begin.high_part(), src2.high_part()); }
+    float32x8 interleave_concat_high(float32x8 odd_begin, float32x8 src2) { return interleave_concat(odd_begin.high_part(), src2.high_part()); }
+    float64x4 interleave_concat_high(float64x4 odd_begin, float64x4 src2) { return interleave_concat(odd_begin.high_part(), src2.high_part()); }
+
+#if defined(_FOYE_SIMD_HAS_FP16_)
+    float16x16 interleave_concat_low(float16x16 odd_begin, float16x16 src2) { return interleave_concat(odd_begin.low_part(), src2.low_part()); }
+    float16x16 interleave_concat_high(float16x16 odd_begin, float16x16 src2) { return interleave_concat(odd_begin.high_part(), src2.high_part()); }
+#endif
+#if defined(_FOYE_SIMD_HAS_BF16_)
+    bfloat16x16 interleave_concat_low(bfloat16x16 odd_begin, bfloat16x16 src2) { return interleave_concat(odd_begin.low_part(), src2.low_part()); }
+    bfloat16x16 interleave_concat_high(bfloat16x16 odd_begin, bfloat16x16 src2) { return interleave_concat(odd_begin.high_part(), src2.high_part()); }
+#endif
 #endif
 }
 
