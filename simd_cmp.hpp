@@ -253,6 +253,54 @@ namespace fyx::simd
     {
         return less_equal(lhs, rhs);
     }
+
+    template<typename simd_type, typename rhs_type> requires(is_basic_simd_v<simd_type>
+    && std::is_constructible_v<typename simd_type::scalar_t, rhs_type>)
+    mask_from_simd_t<simd_type> operator == (simd_type lhs, const rhs_type& rhs)
+    {
+        simd_type rhs_vec = load_brocast<simd_type>(typename simd_type::scalar_t(rhs));
+        return equal(lhs, rhs_vec);
+    }
+
+    template<typename simd_type, typename rhs_type> requires(is_basic_simd_v<simd_type>
+    && std::is_constructible_v<typename simd_type::scalar_t, rhs_type>)
+    mask_from_simd_t<simd_type> operator != (simd_type lhs, const rhs_type& rhs)
+    {
+        simd_type rhs_vec = load_brocast<simd_type>(typename simd_type::scalar_t(rhs));
+        return bitwise_NOT(equal(lhs, rhs_vec).as_basic_simd<simd_type>()).as_basic_mask();
+    }
+
+    template<typename simd_type, typename rhs_type> requires(is_basic_simd_v<simd_type>
+    && std::is_constructible_v<typename simd_type::scalar_t, rhs_type>)
+    mask_from_simd_t<simd_type> operator > (simd_type lhs, const rhs_type& rhs)
+    {
+        simd_type rhs_vec = load_brocast<simd_type>(typename simd_type::scalar_t(rhs));
+        return greater(lhs, rhs_vec);
+    }
+
+    template<typename simd_type, typename rhs_type> requires(is_basic_simd_v<simd_type>
+    && std::is_constructible_v<typename simd_type::scalar_t, rhs_type>)
+    mask_from_simd_t<simd_type> operator < (simd_type lhs, const rhs_type& rhs)
+    {
+        simd_type rhs_vec = load_brocast<simd_type>(typename simd_type::scalar_t(rhs));
+        return less(lhs, rhs_vec);
+    }
+
+    template<typename simd_type, typename rhs_type> requires(is_basic_simd_v<simd_type>
+    && std::is_constructible_v<typename simd_type::scalar_t, rhs_type>)
+    mask_from_simd_t<simd_type> operator >= (simd_type lhs, const rhs_type& rhs)
+    {
+        simd_type rhs_vec = load_brocast<simd_type>(typename simd_type::scalar_t(rhs));
+        return greater_equal(lhs, rhs_vec);
+    }
+
+    template<typename simd_type, typename rhs_type> requires(is_basic_simd_v<simd_type>
+    && std::is_constructible_v<typename simd_type::scalar_t, rhs_type>)
+    mask_from_simd_t<simd_type> operator <= (simd_type lhs, const rhs_type& rhs)
+    {
+        simd_type rhs_vec = load_brocast<simd_type>(typename simd_type::scalar_t(rhs));
+        return less_equal(lhs, rhs_vec);
+    }
 }
 
 #endif
