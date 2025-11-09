@@ -293,24 +293,24 @@ namespace fyx::simd
     template<typename T>
     constexpr bool is_basic_mask_v = (fyx::simd::is_128bits_mask_v<T> || fyx::simd::is_256bits_mask_v<T>);
 
-    template<typename T> requires(fyx::simd::is_basic_simd_v<T>)
+    template<typename T>
     constexpr bool is_256bits_simd_v = (sizeof(typename T::vector_t) == sizeof(__m256i));
 
-    template<typename T> requires(fyx::simd::is_basic_simd_v<T>)
+    template<typename T>
     constexpr bool is_128bits_simd_v = (sizeof(typename T::vector_t) == sizeof(__m128i));
 
-    template<typename T> requires(fyx::simd::is_basic_simd_v<T>)
+    template<typename T>
     constexpr bool is_integral_basic_simd_v = std::is_integral_v<typename T::scalar_t>;
 
-    template<typename T> requires(fyx::simd::is_basic_simd_v<T>)
+    template<typename T>
     constexpr bool is_unsigned_integral_basic_simd_v = (fyx::simd::is_integral_basic_simd_v<T>
             && std::is_unsigned_v<typename T::scalar_t>);
 
-    template<typename T> requires(fyx::simd::is_basic_simd_v<T>)
+    template<typename T>
     constexpr bool is_signed_integral_basic_simd_v = (fyx::simd::is_integral_basic_simd_v<T>
             && std::is_signed_v<typename T::scalar_t>);
 
-    template<typename T> requires(fyx::simd::is_basic_simd_v<T>)
+    template<typename T>
     constexpr bool is_floating_basic_simd_v = (std::is_floating_point_v<typename T::scalar_t>
 #if defined(_FOYE_SIMD_HAS_FP16_)
         || std::is_same_v<typename T::scalar_t, fy::float16>
@@ -321,7 +321,7 @@ namespace fyx::simd
         );
 
 #if defined(_FOYE_SIMD_HAS_FP16_) || defined(_FOYE_SIMD_HAS_BF16_)
-    template<typename T> requires(fyx::simd::is_basic_simd_v<T>)
+    template<typename T>
     constexpr bool is_half_basic_simd_v =
 #if defined(_FOYE_SIMD_HAS_FP16_) && defined(_FOYE_SIMD_HAS_BF16_)
         (std::is_same_v<typename T::scalar_t, fy::float16> || std::is_same_v<typename T::scalar_t, fy::bfloat16>);
@@ -331,9 +331,28 @@ namespace fyx::simd
         std::is_same_v<typename T::scalar_t, fy::bfloat16>;
 #endif
 #else
-    template<typename T> requires(fyx::simd::is_basic_simd_v<T>)
+    template<typename T>
     constexpr bool is_half_basic_simd_v = false;
 #endif
+
+    template<typename simd_type>
+    inline constexpr bool is_simd_or_mask_v = simd::is_basic_mask_v<simd_type> || simd::is_basic_simd_v<simd_type>;
+
+    template<typename... types> constexpr bool is_any_basic_simd_v = (is_basic_simd_v<types> || ...);
+    template<typename... types> constexpr bool is_any_basic_mask_v = (is_basic_mask_v<types> || ...);
+    template<typename... types> constexpr bool is_any_128bit_basic_simd_v = (is_128bits_simd_v<types> || ...);
+    template<typename... types> constexpr bool is_any_256bit_basic_simd_v = (is_256bits_simd_v<types> || ...);
+    template<typename... types> constexpr bool is_any_128bit_basic_mask_v = (is_128bits_mask_v<types> || ...);
+    template<typename... types> constexpr bool is_any_256bit_basic_mask_v = (is_256bits_mask_v<types> || ...);
+
+    template<typename... types> constexpr bool is_all_basic_simd_v = (is_basic_simd_v<types> && ...);
+    template<typename... types> constexpr bool is_all_basic_mask_v = (is_basic_mask_v<types> && ...);
+    template<typename... types> constexpr bool is_all_128bit_basic_simd_v = (is_128bits_simd_v<types> && ...);
+    template<typename... types> constexpr bool is_all_256bit_basic_simd_v = (is_256bits_simd_v<types> && ...);
+    template<typename... types> constexpr bool is_all_128bit_basic_mask_v = (is_128bits_mask_v<types> && ...);
+    template<typename... types> constexpr bool is_all_256bit_basic_mask_v = (is_256bits_mask_v<types> && ...);
+
+    template<typename... types> constexpr bool is_all_simd_or_mask_v = (is_simd_or_mask_v<types> && ...);
 
     template<typename simd_type> requires(fyx::simd::is_integral_basic_simd_v<simd_type>)
     using as_unsigned_type = std::conditional_t<
@@ -384,6 +403,12 @@ namespace fyx::simd
     simd_type load_unaligned(const typename simd_type::scalar_t* mem_addr)
     {
         return simd_type{ fyx::simd::detail::load_unaligned<typename simd_type::vector_t>(mem_addr) };
+    }
+
+    template<typename simd_type> requires(fyx::simd::is_basic_simd_v<simd_type>)
+    simd_type load_stream(const typename simd_type::scalar_t* mem_addr)
+    {
+        return simd_type{ fyx::simd::detail::load_stream<typename simd_type::vector_t>(mem_addr) };
     }
 
     template<typename simd_type> requires(fyx::simd::is_basic_simd_v<simd_type>)
@@ -496,6 +521,32 @@ namespace fyx::simd
         return basic_simd<source_scalar, input_width * 2>{ fyx::simd::detail::merge(low.data, high.data) };
     }
 
+    template<typename simd_type> requires(is_128bits_simd_v<simd_type>)
+    basic_simd<typename simd_type::scalar_t, 256> upgrade_then_zerohigh(simd_type input)
+    {
+        using return_type = basic_simd<typename simd_type::scalar_t, 256>;
+        if constexpr (std::is_same_v<float, typename simd_type::scalar_t>)
+             { return return_type{ _mm256_zextps128_ps256(input.data) }; }
+        else if constexpr (std::is_same_v<double, typename simd_type::scalar_t>)
+             { return return_type{ _mm256_zextpd128_pd256(input.data) }; }
+        else { return return_type{ _mm256_zextsi128_si256(input.data) }; }
+    }
+
+    template<std::size_t index, typename simd_type>
+    requires(fyx::simd::is_basic_simd_v<simd_type> && (index <= (simd_type::lane_width - 1) && index >= 0))
+    simd_type insert_single(simd_type input, typename simd_type::scalar_t newval)
+    {
+        constexpr std::size_t scalar_size = simd_type::scalar_bit_width;
+        if constexpr (scalar_size == 8) { return simd_type{ detail::insert_x8<index>(input.data, std::bit_cast<std::uint8_t>(newval)) }; }
+        else if constexpr (scalar_size == 16) { return simd_type{ detail::insert_x16<index>(input.data, std::bit_cast<std::uint16_t>(newval)) }; }
+        else if constexpr (scalar_size == 32) { return simd_type{ detail::insert_x32<index>(input.data, std::bit_cast<std::uint32_t>(newval)) }; }
+        else if constexpr (scalar_size == 64) { return simd_type{ detail::insert_x64<index>(input.data, std::bit_cast<std::uint64_t>(newval)) }; }
+        else
+        {
+            __assume(false);
+        }
+    }
+
     template<std::size_t index, typename simd_type> 
     requires(fyx::simd::is_basic_simd_v<simd_type> && (index <= (simd_type::lane_width - 1) && index >= 0))
     typename simd_type::scalar_t extract_single_from(simd_type input)
@@ -519,7 +570,7 @@ namespace fyx::simd
     {
         constexpr std::size_t single_width_bits = mask_type::bit_width / mask_type::lane_width;
         constexpr std::size_t single_width = single_width_bits / CHAR_BIT;
-
+        
         if constexpr (single_width == 1) { return static_cast<bool>(fyx::simd::detail::extract_x8<index>(input.data)); }
         else if constexpr (single_width == 2) { return static_cast<bool>(fyx::simd::detail::extract_x16<index>(input.data)); }
         else if constexpr (single_width == 4) { return static_cast<bool>(fyx::simd::detail::extract_x32<index>(input.data)); }
@@ -617,7 +668,7 @@ namespace fyx::simd
     }
 
     template<typename simd_type> requires(is_basic_mask_v<simd_type>)
-    std::string format(simd_type source)
+    std::string format(simd_type source, std::string_view trueval = "1", std::string_view falseval = "0")
     {
         constexpr std::size_t lane_width = simd_type::lane_width;
         return [&]<std::size_t... Indices>(std::index_sequence<Indices...>)
@@ -625,8 +676,8 @@ namespace fyx::simd
             std::string str{ '[' };
             ((str.append(std::format("{}{}",
                 (extract_single_from_mask<Indices>(source)
-                    ? '1'
-                    : '0'),
+                    ? trueval
+                    : falseval),
                 (Indices == lane_width - 1) ? "]" : ", "))), ...);
             return str;
         }(std::make_index_sequence<lane_width>{});
