@@ -64,6 +64,74 @@ namespace fyx::simd
             (((input_selected) << 1) | (input1_selected))) };
     }
 
+
+    namespace detail
+    {
+        template<typename return_type, bool... Bits>
+        consteval return_type to_uinteger() requires std::is_unsigned_v<return_type>
+        {
+            return_type result = 0;
+            constexpr std::size_t bit_count = sizeof...(Bits);
+            bool bits[] = { Bits... };
+
+            for (std::size_t i = 0; i < bit_count; ++i)
+            {
+                if (bits[i])
+                {
+                    result |= static_cast<return_type>(1) << i;
+                }
+            }
+            return result;
+        }
+
+        template<typename simd_type, bool... lhs_if_true>
+            requires(sizeof...(lhs_if_true) == simd_type::lane_width &&
+        simd_type::lane_width == 8 && is_128bits_simd_v<simd_type>)
+            simd_type blend_X16x8(simd_type lhs, simd_type rhs)
+        {
+            constexpr std::uint8_t mask = to_uinteger<std::uint8_t, lhs_if_true...>();
+            return simd_type{ _mm_blend_epi16(lhs.data, rhs.data, static_cast<int>(mask)) };
+        }
+
+        template<typename simd_type, bool... lhs_if_true>
+            requires(sizeof...(lhs_if_true) == simd_type::lane_width &&
+        simd_type::lane_width == 4 && is_128bits_simd_v<simd_type>)
+            simd_type blend_X32x4(simd_type lhs, simd_type rhs)
+        {
+            constexpr std::uint8_t mask = to_uinteger<std::uint8_t, lhs_if_true...>();
+            return simd_type{ _mm_blend_epi32(lhs.data, rhs.data, static_cast<int>(mask)) };
+        }
+    }
+
+    template<bool... lhs_if_true>
+    requires(sizeof...(lhs_if_true) == uint16x8::lane_width)
+    uint16x8 blend(uint16x8 lhs, uint16x8 rhs)
+    {
+        return detail::blend_X16x8<uint16x8, lhs_if_true ...>(lhs, rhs);
+    }
+
+    template<bool... lhs_if_true>
+    requires(sizeof...(lhs_if_true) == sint16x8::lane_width)
+    sint16x8 blend(sint16x8 lhs, sint16x8 rhs)
+    {
+        return detail::blend_X16x8<sint16x8, lhs_if_true ...>(lhs, rhs);
+    }
+
+    template<bool... lhs_if_true>
+    requires(sizeof...(lhs_if_true) == uint32x4::lane_width)
+    uint32x4 blend(uint32x4 lhs, uint32x4 rhs)
+    {
+        return detail::blend_X32x4<uint32x4, lhs_if_true ...>(lhs, rhs);
+    }
+
+    template<bool... lhs_if_true>
+    requires(sizeof...(lhs_if_true) == sint32x4::lane_width)
+    sint32x4 blend(sint32x4 lhs, sint32x4 rhs)
+    {
+        return detail::blend_X32x4<sint32x4, lhs_if_true ...>(lhs, rhs);
+    }
+
+
     namespace detail
     {
         template<typename mask_type, bool first> requires(fyx::simd::is_basic_mask_v<mask_type>)
