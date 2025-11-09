@@ -187,6 +187,33 @@ namespace fyx::simd
 #else
             : data(fyx::simd::detail::load_unaligned<vector_t>(mem_addr)) { }
 #endif
+        template<typename ... Args> requires(sizeof...(Args) == lane_width
+            && (std::is_constructible_v<scalar_t, Args> && ...))
+        basic_simd(Args&& ... args) noexcept
+        {
+            using setter_invoker = detail::setter_by_each_invoker<vector_t, sizeof(scalar_t), lane_width>;
+            setter_invoker invoker{};
+            constexpr bool is_half = 
+#if defined(_FOYE_SIMD_HAS_FP16_) && defined(_FOYE_SIMD_HAS_BF16_)
+                (std::is_same_v<scalar_t, fy::float16> || std::is_same_v<scalar_t, fy::bfloat16>);
+#elif defined(_FOYE_SIMD_HAS_FP16_)
+                std::is_same_v<scalar_t, fy::float16>;
+#elif defined(_FOYE_SIMD_HAS_BF16_)
+                std::is_same_v<scalar_t, fy::bfloat16>;
+#else
+                false;
+#endif
+            if constexpr (is_half)
+            {
+                data = invoker(std::bit_cast<std::uint16_t>(scalar_t{
+                    static_cast<float>(std::forward<Args>(args)) }) ...);
+            }
+            else
+            {
+                data = invoker(static_cast<scalar_t>(std::forward<Args>(args))...);
+            }
+        }
+
 
         operator vector_t() const noexcept { return data; }
 
@@ -232,6 +259,24 @@ namespace fyx::simd
         requires(sizeof(input_type) == sizeof(vector_t) && fyx::simd::detail::is_mm_vector_type_v<input_type>)
         basic_mask(input_type input) noexcept
             : data(fyx::simd::detail::basic_reinterpret<vector_t, input_type>(input)) { }
+
+        template<typename ... Args> requires(sizeof...(Args) == lane_width
+        && (std::is_constructible_v<Args, bool> && ...))
+        basic_mask(Args&& ... args) noexcept
+        {
+            using bits_contain_type = std::conditional_t<single_width_bytes == 1, std::uint8_t,
+                std::conditional_t<single_width_bytes == 2, std::uint16_t,
+                std::conditional_t<single_width_bytes == 4, std::uint32_t, std::uint64_t>>>;
+
+            using setter_invoker = fyx::simd::detail::setter_by_each_invoker<
+                vector_t, sizeof(bits_contain_type), lane_width>;
+
+            constexpr bits_contain_type true_val{ std::numeric_limits<bits_contain_type>::max() };
+            constexpr bits_contain_type false_val{ 0 };
+
+            setter_invoker invoker{};
+            data = invoker((static_cast<bool>(std::forward<Args>(args)) ? true_val : false_val) ...);
+        }
 
         template<typename output_type> 
         requires(sizeof(output_type) == sizeof(vector_t) && fyx::simd::detail::is_mm_vector_type_v<output_type>)
