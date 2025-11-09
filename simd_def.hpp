@@ -165,6 +165,7 @@ namespace fyx::simd
         
         static constexpr std::size_t scalar_bit_width = sizeof(T) * CHAR_BIT;
 
+        using mask_t = basic_mask<lane_width, bit_width>;
         using scalar_t = T;
         using vector_t = std::conditional_t<bits_width == 128,
             fyx::simd::detail::vector_128_t<scalar_t>
@@ -230,9 +231,9 @@ namespace fyx::simd
             return temp[index];
         }
 
-        basic_mask<lane_width, bits_width> as_basic_mask() const noexcept
+        mask_t as_basic_mask() const noexcept
         {
-            return basic_mask<lane_width, bits_width>{ *this };
+            return mask_t{ *this };
         }
     };
 
@@ -727,10 +728,6 @@ namespace fyx::simd
             return str;
         }(std::make_index_sequence<lane_width>{});
     }
-
-    
-
-
 }
 
 #endif
