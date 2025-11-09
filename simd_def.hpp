@@ -176,7 +176,8 @@ namespace fyx::simd
         basic_simd() noexcept = default;
         explicit basic_simd(vector_t data_) noexcept : data(data_) { }
 
-        explicit basic_simd(basic_simd<T, bits_width / 2> low, basic_simd<T, bits_width / 2> high) noexcept
+        explicit basic_simd(basic_simd<T, bits_width / 2> low, basic_simd<T, bits_width / 2> high) 
+            noexcept requires(bits_width == 256)
             : data(fyx::simd::detail::merge(low.data, high.data)) { }
 
         explicit basic_simd(scalar_t brocast_) noexcept
@@ -218,10 +219,16 @@ namespace fyx::simd
 
         operator vector_t() const noexcept { return data; }
 
-        basic_simd<T, bits_width / 2> low_part() const noexcept
+        void replace_high(basic_simd<T, bits_width / 2> source) noexcept requires(bits_width == 256)
+        { data = fyx::simd::detail::replace_high_128(data, source.data); }
+
+        void replace_low(basic_simd<T, bits_width / 2> source) noexcept requires(bits_width == 256)
+        { data = fyx::simd::detail::replace_low_128(data, source.data); }
+
+        basic_simd<T, bits_width / 2> low_part() const noexcept requires(bits_width == 256)
         { return basic_simd<T, bits_width / 2>{fyx::simd::detail::split_low(this->data)}; }
 
-        basic_simd<T, bits_width / 2> high_part() const noexcept
+        basic_simd<T, bits_width / 2> high_part() const noexcept requires(bits_width == 256)
         { return basic_simd<T, bits_width / 2>{fyx::simd::detail::split_high(this->data)}; }
 
         FOYE_SIMD_PERFORMANCE_MATTER scalar_t operator [] (std::size_t index) const noexcept
@@ -293,6 +300,18 @@ namespace fyx::simd
             return simd_type{ fyx::simd::detail::basic_reinterpret<
                 typename simd_type::vector_t>(this->data) };
         }
+
+        void replace_high(basic_mask<lane_width / 2, bit_width / 2> source) noexcept requires(bit_width == 256)
+        { data = fyx::simd::detail::replace_high_128(data, source.data); }
+
+        void replace_low(basic_mask<lane_width / 2, bit_width / 2> source) noexcept requires(bit_width == 256)
+        { data = fyx::simd::detail::replace_low_128(data, source.data);  }
+
+        basic_mask<lane_width / 2, bit_width / 2> low_part() const noexcept requires(bit_width == 256)
+        { return basic_mask<lane_width / 2, bit_width / 2>{fyx::simd::detail::split_low(this->data)};  }
+
+        basic_mask<lane_width / 2, bit_width / 2> high_part() const noexcept requires(bit_width == 256)
+        { return basic_mask<lane_width / 2, bit_width / 2>{fyx::simd::detail::split_high(this->data)}; }
 
         FOYE_SIMD_PERFORMANCE_MATTER bool operator [] (std::size_t index) const noexcept
         {
@@ -537,9 +556,8 @@ namespace fyx::simd
 
     template<typename target_simd, typename source_simd>
         requires((is_basic_simd_v<target_simd> || is_basic_mask_v<target_simd>)
-    && (is_basic_simd_v<target_simd> || is_basic_mask_v<target_simd>)
-        && (target_simd::bit_width == source_simd::bit_width))
-        target_simd reinterpret(source_simd source_vec)
+    && (is_basic_simd_v<target_simd> || is_basic_mask_v<target_simd>) && (target_simd::bit_width == source_simd::bit_width))
+    target_simd reinterpret(source_simd source_vec)
     {
         return target_simd{ detail::basic_reinterpret<
             typename target_simd::vector_t>(source_vec.data) };
@@ -728,6 +746,10 @@ namespace fyx::simd
             return str;
         }(std::make_index_sequence<lane_width>{});
     }
+
+    
+
+
 }
 
 #endif
