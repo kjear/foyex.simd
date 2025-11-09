@@ -357,6 +357,27 @@ template<> struct setter_by_each_invoker<return_type, scalar_size, lane_width>\
     FOYE_SIMD_INTRINSIC __m256d merge(__m128d low, __m128d high) { return _mm256_insertf128_pd(_mm256_castpd128_pd256(low), high, 0x1); }
 
 
+    template<typename dst, typename src> dst basic_reinterpret(src) { __assume(false); }
+    template<> FOYE_SIMD_INTRINSIC __m128 basic_reinterpret(__m128 v) { return v; }
+    template<> FOYE_SIMD_INTRINSIC __m128d basic_reinterpret(__m128d v) { return v; }
+    template<> FOYE_SIMD_INTRINSIC __m128i basic_reinterpret(__m128i v) { return v; }
+    template<> FOYE_SIMD_INTRINSIC __m128 basic_reinterpret(__m128i v) { return _mm_castsi128_ps(v); }
+    template<> FOYE_SIMD_INTRINSIC __m128d basic_reinterpret(__m128i v) { return _mm_castsi128_pd(v); }
+    template<> FOYE_SIMD_INTRINSIC __m128i basic_reinterpret(__m128 v) { return _mm_castps_si128(v); }
+    template<> FOYE_SIMD_INTRINSIC __m128d basic_reinterpret(__m128 v) { return _mm_castps_pd(v); }
+    template<> FOYE_SIMD_INTRINSIC __m128 basic_reinterpret(__m128d v) { return _mm_castpd_ps(v); }
+    template<> FOYE_SIMD_INTRINSIC __m128i basic_reinterpret(__m128d v) { return _mm_castpd_si128(v); }
+    template<> FOYE_SIMD_INTRINSIC __m256 basic_reinterpret(__m256 v) { return v; }
+    template<> FOYE_SIMD_INTRINSIC __m256d basic_reinterpret(__m256d v) { return v; }
+    template<> FOYE_SIMD_INTRINSIC __m256i basic_reinterpret(__m256i v) { return v; }
+    template<> FOYE_SIMD_INTRINSIC __m256 basic_reinterpret(__m256i v) { return _mm256_castsi256_ps(v); }
+    template<> FOYE_SIMD_INTRINSIC __m256d basic_reinterpret(__m256i v) { return _mm256_castsi256_pd(v); }
+    template<> FOYE_SIMD_INTRINSIC __m256i basic_reinterpret(__m256 v) { return _mm256_castps_si256(v); }
+    template<> FOYE_SIMD_INTRINSIC __m256d basic_reinterpret(__m256 v) { return _mm256_castps_pd(v); }
+    template<> FOYE_SIMD_INTRINSIC __m256 basic_reinterpret(__m256d v) { return _mm256_castpd_ps(v); }
+    template<> FOYE_SIMD_INTRINSIC __m256i basic_reinterpret(__m256d v) { return _mm256_castpd_si256(v); }
+
+
     template<typename vector_type> vector_type load_aligned(const void*);
     template<> FOYE_SIMD_INTRINSIC __m128i load_aligned<__m128i>(const void* mem_addr) { return _mm_load_si128(reinterpret_cast<const __m128i*>(mem_addr)); }
     template<> FOYE_SIMD_INTRINSIC __m128 load_aligned<__m128>(const void* mem_addr) { return _mm_load_ps(reinterpret_cast<const float*>(mem_addr)); }
@@ -372,6 +393,14 @@ template<> struct setter_by_each_invoker<return_type, scalar_size, lane_width>\
     template<> FOYE_SIMD_INTRINSIC __m256i load_unaligned<__m256i>(const void* mem_addr) { return _mm256_loadu_si256(reinterpret_cast<const __m256i*>(mem_addr)); }
     template<> FOYE_SIMD_INTRINSIC __m256 load_unaligned<__m256>(const void* mem_addr) { return _mm256_loadu_ps(reinterpret_cast<const float*>(mem_addr)); }
     template<> FOYE_SIMD_INTRINSIC __m256d load_unaligned<__m256d>(const void* mem_addr) { return _mm256_loadu_pd(reinterpret_cast<const double*>(mem_addr)); }
+
+    template<typename vector_type> vector_type load_stream(const void*);
+    template<> FOYE_SIMD_INTRINSIC __m128i load_stream<__m128i>(const void* mem_addr) { return _mm_stream_load_si128(reinterpret_cast<const __m128i*>(mem_addr)); }
+    template<> FOYE_SIMD_INTRINSIC __m128 load_stream<__m128>(const void* mem_addr) { return detail::basic_reinterpret<__m128>(_mm_stream_load_si128(reinterpret_cast<const __m128i*>(mem_addr))); }
+    template<> FOYE_SIMD_INTRINSIC __m128d load_stream<__m128d>(const void* mem_addr) { return detail::basic_reinterpret<__m128d>(_mm_stream_load_si128(reinterpret_cast<const __m128i*>(mem_addr))); }
+    template<> FOYE_SIMD_INTRINSIC __m256i load_stream<__m256i>(const void* mem_addr) { return _mm256_stream_load_si256(reinterpret_cast<const __m256i*>(mem_addr)); }
+    template<> FOYE_SIMD_INTRINSIC __m256 load_stream<__m256>(const void* mem_addr) { return detail::basic_reinterpret<__m256>(_mm256_stream_load_si256(reinterpret_cast<const __m256i*>(mem_addr))); }
+    template<> FOYE_SIMD_INTRINSIC __m256d load_stream<__m256d>(const void* mem_addr) { return detail::basic_reinterpret<__m256d>(_mm256_stream_load_si256(reinterpret_cast<const __m256i*>(mem_addr))); }
 
     template<typename vector_type> void store_unaligned(vector_type, void*);
     template<> FOYE_SIMD_INTRINSIC void store_unaligned<__m128i>(__m128i vec, void* mem_addr) { _mm_storeu_si128(reinterpret_cast<__m128i*>(mem_addr), vec); }
@@ -396,6 +425,9 @@ template<> struct setter_by_each_invoker<return_type, scalar_size, lane_width>\
     template<> FOYE_SIMD_INTRINSIC void store_stream<__m256i>(__m256i vec, void* mem_addr) { _mm256_stream_si256(reinterpret_cast<__m256i*>(mem_addr), vec); }
     template<> FOYE_SIMD_INTRINSIC void store_stream<__m256>(__m256 vec, void* mem_addr) { _mm256_stream_ps(reinterpret_cast<float*>(mem_addr), vec); }
     template<> FOYE_SIMD_INTRINSIC void store_stream<__m256d>(__m256d vec, void* mem_addr) { _mm256_stream_pd(reinterpret_cast<double*>(mem_addr), vec); }
+
+
+
 
     template<typename return_type, typename scalar_type> return_type brocast(scalar_type) { return return_type{}; }
     template<> FOYE_SIMD_INTRINSIC __m128i brocast<__m128i, std::uint8_t>(std::uint8_t scalar) { return _mm_set1_epi8(std::bit_cast<char>(scalar)); }
@@ -445,32 +477,24 @@ template<> struct setter_by_each_invoker<return_type, scalar_size, lane_width>\
     template<std::size_t index> FOYE_SIMD_INTRINSIC std::uint32_t extract_x32(__m256 src) { return std::bit_cast<std::uint32_t>(_mm256_extract_epi32(_mm256_castps_si256(src), index)); }
     template<std::size_t index> FOYE_SIMD_INTRINSIC std::uint64_t extract_x64(__m256d src) { return std::bit_cast<std::uint64_t>(_mm256_extract_epi64(_mm256_castpd_si256(src), index)); }
 
-    template<typename dst, typename src> dst basic_reinterpret(src) { __assume(false); }
-    template<> FOYE_SIMD_INTRINSIC __m128 basic_reinterpret(__m128 v) { return v; }
-    template<> FOYE_SIMD_INTRINSIC __m128d basic_reinterpret(__m128d v) { return v; }
-    template<> FOYE_SIMD_INTRINSIC __m128i basic_reinterpret(__m128i v) { return v; }
 
-    template<> FOYE_SIMD_INTRINSIC __m128 basic_reinterpret(__m128i v) { return _mm_castsi128_ps(v); }
-    template<> FOYE_SIMD_INTRINSIC __m128d basic_reinterpret(__m128i v) { return _mm_castsi128_pd(v); }
+    template<std::size_t index> FOYE_SIMD_INTRINSIC __m128i insert_x8(__m128i src, std::uint8_t new_val) { return _mm_insert_epi8(src, static_cast<int>(new_val), index); }
+    template<std::size_t index> FOYE_SIMD_INTRINSIC __m128i insert_x16(__m128i src, std::uint16_t new_val) { return _mm_insert_epi16(src, static_cast<int>(new_val), index); }
+    template<std::size_t index> FOYE_SIMD_INTRINSIC __m128i insert_x32(__m128i src, std::uint32_t new_val) { return _mm_insert_epi32(src, std::bit_cast<int>(new_val), index); }
+    template<std::size_t index> FOYE_SIMD_INTRINSIC __m128i insert_x64(__m128i src, std::uint64_t new_val) { return _mm_insert_epi64(src, std::bit_cast<long long>(new_val), index); }
+    template<std::size_t index> FOYE_SIMD_INTRINSIC __m128 insert_x32(__m128 src, std::uint32_t new_val) { return _mm_insert_epi32(_mm_castps_si128(src), std::bit_cast<int>(new_val), index); }
+    template<std::size_t index> FOYE_SIMD_INTRINSIC __m128d insert_x64(__m128d src, std::uint64_t new_val) { return _mm_insert_epi64(_mm_castpd_si128(src), std::bit_cast<long long>(new_val), index); }
 
-    template<> FOYE_SIMD_INTRINSIC __m128i basic_reinterpret(__m128 v) { return _mm_castps_si128(v); }
-    template<> FOYE_SIMD_INTRINSIC __m128d basic_reinterpret(__m128 v) { return _mm_castps_pd(v); }
+    template<std::size_t index> FOYE_SIMD_INTRINSIC __m256i insert_x8(__m256i src, std::uint8_t new_val) { return _mm256_insert_epi8(src, static_cast<int>(new_val), index); }
+    template<std::size_t index> FOYE_SIMD_INTRINSIC __m256i insert_x16(__m256i src, std::uint16_t new_val) { return _mm256_insert_epi16(src, static_cast<int>(new_val), index); }
+    template<std::size_t index> FOYE_SIMD_INTRINSIC __m256i insert_x32(__m256i src, std::uint32_t new_val) { return _mm256_insert_epi32(src, std::bit_cast<int>(new_val), index); }
+    template<std::size_t index> FOYE_SIMD_INTRINSIC __m256i insert_x64(__m256i src, std::uint64_t new_val) { return _mm256_insert_epi64(src, std::bit_cast<long long>(new_val), index); }
+    template<std::size_t index> FOYE_SIMD_INTRINSIC __m256 insert_x32(__m256 src, std::uint32_t new_val) { return _mm256_insert_epi32(_mm256_castps_si256(src), std::bit_cast<int>(new_val), index); }
+    template<std::size_t index> FOYE_SIMD_INTRINSIC __m256d insert_x64(__m256d src, std::uint64_t new_val) { return _mm256_insert_epi64(_mm256_castpd_si256(src), std::bit_cast<long long>(new_val), index); }
 
-    template<> FOYE_SIMD_INTRINSIC __m128 basic_reinterpret(__m128d v) { return _mm_castpd_ps(v); }
-    template<> FOYE_SIMD_INTRINSIC __m128i basic_reinterpret(__m128d v) { return _mm_castpd_si128(v); }
 
-    template<> FOYE_SIMD_INTRINSIC __m256 basic_reinterpret(__m256 v) { return v; }
-    template<> FOYE_SIMD_INTRINSIC __m256d basic_reinterpret(__m256d v) { return v; }
-    template<> FOYE_SIMD_INTRINSIC __m256i basic_reinterpret(__m256i v) { return v; }
 
-    template<> FOYE_SIMD_INTRINSIC __m256 basic_reinterpret(__m256i v) { return _mm256_castsi256_ps(v); }
-    template<> FOYE_SIMD_INTRINSIC __m256d basic_reinterpret(__m256i v) { return _mm256_castsi256_pd(v); }
 
-    template<> FOYE_SIMD_INTRINSIC __m256i basic_reinterpret(__m256 v) { return _mm256_castps_si256(v); }
-    template<> FOYE_SIMD_INTRINSIC __m256d basic_reinterpret(__m256 v) { return _mm256_castps_pd(v); }
-
-    template<> FOYE_SIMD_INTRINSIC __m256 basic_reinterpret(__m256d v) { return _mm256_castpd_ps(v); }
-    template<> FOYE_SIMD_INTRINSIC __m256i basic_reinterpret(__m256d v) { return _mm256_castpd_si256(v); }
 }
 
 
