@@ -2257,8 +2257,7 @@ namespace fyx::simd
     { return reinterpret<bfloat16x16>(interleave_concat_high_per_half(reinterpret<uint16x16>(odd_begin), reinterpret<uint16x16>(src2))); }
 #endif
 
-
-#if defined(_FOYE_SIMD_ENABLE_EMULATED_)
+#if defined(FOYE_SIMD_ENABLE_INTERLEAVE_CONCAT_256BLH_EMULATED)
     uint8x32 interleave_concat_low(uint8x32 odd_begin, uint8x32 src2) { return interleave_concat(odd_begin.low_part(), src2.low_part()); }
     uint16x16 interleave_concat_low(uint16x16 odd_begin, uint16x16 src2)  { return interleave_concat(odd_begin.low_part(), src2.low_part()); }
     uint32x8 interleave_concat_low(uint32x8 odd_begin, uint32x8 src2) { return interleave_concat(odd_begin.low_part(), src2.low_part()); }
