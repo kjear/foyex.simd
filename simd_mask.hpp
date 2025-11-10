@@ -408,7 +408,7 @@ namespace fyx::simd
 
     template<typename simd_type, typename mask_type>
         requires(fyx::simd::is_basic_simd_v<simd_type>&& fyx::simd::is_basic_mask_v<mask_type>
-#if !defined(_FOYE_SIMD_ENABLE_EMULATED_)
+#if !defined(FOYE_SIMD_ENABLE_EMULATED_MASK_STORE)
     && (simd_type::scalar_bit_width == 32 || simd_type::scalar_bit_width == 64)
 #endif
         && ((simd_type::lane_width == mask_type::lane_width)
@@ -447,12 +447,12 @@ namespace fyx::simd
         }
         else
         {
-#if defined(_FOYE_SIMD_ENABLE_EMULATED_)
-#if !defined(_FOYE_SIMD_DISABLE_MASK_LOAD_ERROR)
+#if defined(FOYE_SIMD_ENABLE_EMULATED_MASK_STORE)
+#if !defined(FOYE_SIMD_DISABLE_MASK_LOAD_ERROR)
             static_assert(simd_type::scalar_bit_width == 32 || simd_type::scalar_bit_width == 64,
                 "Implemented by a large combination of composite instructions, "
                 "there are serious performance issues compared to native instructions"
-                "define _FOYE_SIMD_DISABLE_MASK_LOAD_ERROR to close this error message and enable simulation implementation");
+                "define FOYE_SIMD_DISABLE_MASK_LOAD_ERROR to close this error message and enable simulation implementation");
 #else
             simd_type source = load_unaligned<simd_type>(
                 reinterpret_cast<const typename simd_type::scalar_t*>(mem_addr));
