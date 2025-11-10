@@ -129,14 +129,6 @@ namespace fyx::simd::test
 #endif
 
 #if defined(FOYE_SIMD_ENABLE_SVML)
-    float32x8 invsqrt(float32x8 input) { return float32x8{ _mm256_invsqrt_ps(input.data) }; }
-    float64x4 invsqrt(float64x4 input) { return float64x4{ _mm256_invsqrt_pd(input.data) }; }
-    float32x4 invsqrt(float32x4 input) { return float32x4{ _mm_invsqrt_ps(input.data) }; }
-    float64x2 invsqrt(float64x2 input) { return float64x2{ _mm_invsqrt_pd(input.data) }; }
-#else
-#endif
-
-#if defined(FOYE_SIMD_ENABLE_SVML)
     float32x8 invcbrt(float32x8 input) { return float32x8{ _mm256_invcbrt_ps(input.data) }; }
     float64x4 invcbrt(float64x4 input) { return float64x4{ _mm256_invcbrt_pd(input.data) }; }
     float32x4 invcbrt(float32x4 input) { return float32x4{ _mm_invcbrt_ps(input.data) }; }
