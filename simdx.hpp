@@ -2,12 +2,42 @@
 #define _FOYE_SIMDX_HPP_
 #pragma once
 
-#define FOYE_SIMD_DISABLE_PERFORMANCE_NOTICE
-// #define FOYE_SIMD_ENABLE_SVML
-
 #define _FOYE_SIMD_ENABLE_EMULATED_
 #define _FOYE_SIMD_ENABLE_CVTEPX64_PD_AVX2_EMULATED
-// #define _FOYE_SIMD_DISABLE_MASK_LOAD_ERROR
+
+// #define FOYE_SIMD_BASIC_SIMD_DEFAULT_LOAD_FROM_MEMORY_ALIGNED
+#define FOYE_SIMD_ENABLE_FP16
+#define FOYE_SIMD_ENABLE_BF16
+#define FOYE_SIMD_DISABLE_BASIC_SIMD_SQEARE_BRACKET_ACCESS_PERFORMANCE_NOTICE
+#define FOYE_SIMD_DISABLE_BASIC_MASK_SQEARE_BRACKET_ACCESS_PERFORMANCE_NOTICE
+// #define FOYE_SIMD_ENABLE_SVML_TRUNC
+// #define FOYE_SIMD_ENABLE_SVML_ERF
+// #define FOYE_SIMD_ENABLE_SVML_HYPOT
+// #define FOYE_SIMD_ENABLE_SVML_EXP2
+// #define FOYE_SIMD_ENABLE_SVML_EXP
+// #define FOYE_SIMD_ENABLE_SVML_CDDFNORM
+// #define FOYE_SIMD_ENABLE_SVML_LOG
+// #define FOYE_SIMD_ENABLE_SVML_LOG2
+// #define FOYE_SIMD_ENABLE_SVML_CBRT
+// #define FOYE_SIMD_ENABLE_SVML_POW
+// #define FOYE_SIMD_ENABLE_SVML_LOGB
+// #define FOYE_SIMD_ENABLE_SVML_SINCOS
+// #define FOYE_SIMD_ENABLE_SVML_ASIN
+// #define FOYE_SIMD_ENABLE_SVML_ACOS
+// #define FOYE_SIMD_ENABLE_SVML_ATAN
+
+#define FOYE_SIMD_ENABLE_INTERLEAVE_CONCAT_256BLH_EMULATED
+#define FOYE_SIMD_ENABLE_SHIFT_EMULATED
+#define FOYE_SIMD_ENABLE_COMPARISON_OPERATORS
+#define FOYE_SIMD_ENABLE_EMULATED_MULTIPLIES
+#define FOYE_SIMD_ENABLE_EMULATED_64BIT_MINMAX
+#define FOYE_SIMD_ENABLE_EMULATED_64BIT_ABS
+#define FOYE_SIMD_ENABLE_EMULATED_64BIT_SIGN_TRANSFER
+#define FOYE_SIMD_ENABLE_EMULATED_AVG
+#define FOYE_SIMD_ENABLE_NUMERIC_OPERATORS
+
+#define FOYE_SIMD_ENABLE_EMULATED_MASK_STORE
+// #define FOYE_SIMD_DISABLE_MASK_LOAD_ERROR
 
 #pragma warning(push)
 #pragma warning(disable : 4309)
@@ -20,107 +50,6 @@
 #include "simd_floating.hpp"
 #include "simd_cvt.hpp"
 #pragma warning(pop)
-
-#include <random>
-
-namespace fyx::simd::test
-{
-	template<typename vector_type> 
-		requires(std::is_floating_point_v<typename vector_type::scalar_t>
-#ifdef _FOYE_SIMD_HAS_FP16_
-	|| std::is_same_v<typename vector_type::scalar_t, fy::float16>
-#endif
-#ifdef _FOYE_SIMD_HAS_BF16_
-		|| std::is_same_v<typename vector_type::scalar_t, fy::bfloat16>
-#endif
-			)
-	vector_type create_random_vector()
-	{
-		using scalar_t = typename vector_type::scalar_t;
-		using use_type = std::conditional_t<std::is_same_v<scalar_t, double>, double, float>;
-
-		std::random_device rd;
-		std::mt19937 gen(rd());
-
-		scalar_t arr[vector_type::lane_width] = { };
-		std::uniform_real_distribution<use_type> dist(-999.9, 999.9);
-		for (std::size_t i = 0; i < vector_type::lane_width; ++i)
-		{
-			arr[i] = static_cast<scalar_t>(dist(gen));
-		}
-
-		return fyx::simd::load_unaligned<vector_type>(arr);
-	}
-}
-
-namespace fyx::simd
-{
-    struct uint4x2
-    {
-        std::uint8_t data;
-
-        constexpr uint4x2() noexcept : data(0) {}
-
-        constexpr uint4x2(std::uint8_t low_part, std::uint8_t high_part) noexcept
-            : data((high_part << 4) | (low_part & 0xF)) {
-        }
-
-        constexpr std::uint8_t low() const noexcept { return data & 0xF; }
-
-        constexpr std::uint8_t high() const noexcept { return (data >> 4) & 0xF; }
-
-        constexpr void set_low(std::uint8_t value) noexcept
-        {
-            value &= 0xF;
-            data = (data & 0xF0) | value;
-        }
-
-        constexpr void set_high(std::uint8_t value) noexcept
-        {
-            value &= 0xF;
-            data = (data & 0x0F) | (value << 4);
-        }
-
-        constexpr uint4x2 operator + (uint4x2 other) const noexcept
-        {
-            std::uint8_t low_a = low();
-            std::uint8_t low_b = other.low();
-            std::uint8_t low_result = ADD_TABLE[low_a][low_b];
-
-            std::uint8_t high_a = high();
-            std::uint8_t high_b = other.high();
-            std::uint8_t high_result = ADD_TABLE[high_a][high_b];
-
-            std::uint8_t result_low = low_result & 0xF;
-            std::uint8_t result_high = (high_result + (low_result >> 4)) & 0xF;
-            return uint4x2(result_low, result_high);
-        }
-
-        static constexpr std::uint8_t ADD_TABLE[16][16] = {
-            {0x00,0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x09,0x0A,0x0B,0x0C,0x0D,0x0E,0x0F},
-            {0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x09,0x0A,0x0B,0x0C,0x0D,0x0E,0x0F,0x10},
-            {0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x09,0x0A,0x0B,0x0C,0x0D,0x0E,0x0F,0x10,0x11},
-            {0x03,0x04,0x05,0x06,0x07,0x08,0x09,0x0A,0x0B,0x0C,0x0D,0x0E,0x0F,0x10,0x11,0x12},
-            {0x04,0x05,0x06,0x07,0x08,0x09,0x0A,0x0B,0x0C,0x0D,0x0E,0x0F,0x10,0x11,0x12,0x13},
-            {0x05,0x06,0x07,0x08,0x09,0x0A,0x0B,0x0C,0x0D,0x0E,0x0F,0x10,0x11,0x12,0x13,0x14},
-            {0x06,0x07,0x08,0x09,0x0A,0x0B,0x0C,0x0D,0x0E,0x0F,0x10,0x11,0x12,0x13,0x14,0x15},
-            {0x07,0x08,0x09,0x0A,0x0B,0x0C,0x0D,0x0E,0x0F,0x10,0x11,0x12,0x13,0x14,0x15,0x16},
-            {0x08,0x09,0x0A,0x0B,0x0C,0x0D,0x0E,0x0F,0x10,0x11,0x12,0x13,0x14,0x15,0x16,0x17},
-            {0x09,0x0A,0x0B,0x0C,0x0D,0x0E,0x0F,0x10,0x11,0x12,0x13,0x14,0x15,0x16,0x17,0x18},
-            {0x0A,0x0B,0x0C,0x0D,0x0E,0x0F,0x10,0x11,0x12,0x13,0x14,0x15,0x16,0x17,0x18,0x19},
-            {0x0B,0x0C,0x0D,0x0E,0x0F,0x10,0x11,0x12,0x13,0x14,0x15,0x16,0x17,0x18,0x19,0x1A},
-            {0x0C,0x0D,0x0E,0x0F,0x10,0x11,0x12,0x13,0x14,0x15,0x16,0x17,0x18,0x19,0x1A,0x1B},
-            {0x0D,0x0E,0x0F,0x10,0x11,0x12,0x13,0x14,0x15,0x16,0x17,0x18,0x19,0x1A,0x1B,0x1C},
-            {0x0E,0x0F,0x10,0x11,0x12,0x13,0x14,0x15,0x16,0x17,0x18,0x19,0x1A,0x1B,0x1C,0x1D},
-            {0x0F,0x10,0x11,0x12,0x13,0x14,0x15,0x16,0x17,0x18,0x19,0x1A,0x1B,0x1C,0x1D,0x1E}
-        };
-    };
-
-    void print(uint4x2 u4x2)
-    {
-        std::cout << std::format("low: {}, high: {}", u4x2.low(), u4x2.high()) << std::endl;
-    }
-}
 
 namespace fyx::simd
 {
