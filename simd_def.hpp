@@ -6,55 +6,6 @@
 
 namespace fyx::simd
 {
-    bool is_AVX512F_available()
-    {
-        std::int32_t reg[4];
-        __cpuidex(reg, 7, 0);
-        return (reg[1] & (1 << 16)) != 0;
-    }
-
-    bool is_AVX2_available()
-    {
-        std::int32_t reg[4];
-        __cpuidex(reg, 7, 0);
-        return (reg[1] & (1 << 5)) != 0;
-    }
-
-    bool is_FMA_available()
-    {
-        std::int32_t reg[4];
-        __cpuidex(reg, 1, 0);
-        return (reg[2] & (1 << 12)) != 0;
-    }
-
-    bool is_SSE2_available()
-    {
-        std::int32_t reg[4];
-        __cpuidex(reg, 1, 0);
-        return (reg[3] & (1 << 26)) != 0;
-    }
-
-    bool is_SSE3_available()
-    {
-        std::int32_t reg[4];
-        __cpuidex(reg, 1, 0);
-        return (reg[2] & (1 << 0)) != 0;
-    }
-
-    bool is_SSE4_1_available()
-    {
-        std::int32_t reg[4];
-        __cpuidex(reg, 1, 0);
-        return (reg[2] & (1 << 19)) != 0;
-    }
-
-    bool is_AVX_available()
-    {
-        std::int32_t reg[4];
-        __cpuidex(reg, 1, 0);
-        return (reg[2] & (1 << 28)) != 0;
-    }
-
     void flush_cache_line(const void* addr) { _mm_clflush(addr); }
     void load_fence() { _mm_lfence(); }
     void store_fence() { _mm_sfence(); }
@@ -184,7 +135,7 @@ namespace fyx::simd
             : data(fyx::simd::detail::brocast<vector_t, scalar_t>(brocast_)) { }
 
         explicit basic_simd(const scalar_t* mem_addr) noexcept
-#if defined(_FOYE_SIMD_DEFAULT_ALIGNED_)
+#if defined(FOYE_SIMD_BASIC_SIMD_DEFAULT_LOAD_FROM_MEMORY_ALIGNED)
             : data(fyx::simd::detail::load_aligned<vector_t>(mem_addr)) { }
 #else
             : data(fyx::simd::detail::load_unaligned<vector_t>(mem_addr)) { }
@@ -216,7 +167,6 @@ namespace fyx::simd
             }
         }
 
-
         operator vector_t() const noexcept { return data; }
 
         void replace_high(basic_simd<T, bits_width / 2> source) noexcept requires(bits_width == 256)
@@ -231,17 +181,35 @@ namespace fyx::simd
         basic_simd<T, bits_width / 2> high_part() const noexcept requires(bits_width == 256)
         { return basic_simd<T, bits_width / 2>{fyx::simd::detail::split_high(this->data)}; }
 
-#if !defined(FOYE_SIMD_DISABLE_PERFORMANCE_NOTICE)
+#if !defined(FOYE_SIMD_DISABLE_BASIC_SIMD_SQEARE_BRACKET_ACCESS_PERFORMANCE_NOTICE)
         FOYE_SIMD_ERROR_WHEN_CALLED(
-            "The design purpose of this function is to prioritize convenience. "
+            "The design purpose of this function is to prioritize convenience. It has an extremely high cost of performance loss"
             "If performance is to be considered, please use other solutions like: scalar_t basic_simd<T, bits_width>::extract_at<index>()."
-            "or define FOYE_SIMD_DISABLE_PERFORMANCE_NOTICE to disable this error")
+            "or define FOYE_SIMD_DISABLE_BASIC_SIMD_SQEARE_BRACKET_ACCESS_PERFORMANCE_NOTICE to disable this error")
 #endif
         scalar_t operator [] (std::size_t index) const noexcept
         {
             scalar_t temp[lane_width] = { };
             fyx::simd::detail::store_unaligned(this->data, temp);
             return temp[index];
+        }
+
+        template<std::size_t index>
+        requires((index <= (lane_width - 1) && index >= 0))
+        void repalce_at(scalar_t newval) noexcept
+        {
+            if constexpr (scalar_bit_width == 8) 
+            { data = detail::insert_x8<index>(data, std::bit_cast<std::uint8_t>(newval)); }
+            else if constexpr (scalar_bit_width == 16) 
+            { data = detail::insert_x16<index>(data, std::bit_cast<std::uint16_t>(newval)); }
+            else if constexpr (scalar_bit_width == 32) 
+            { data = detail::insert_x32<index>(data, std::bit_cast<std::uint32_t>(newval)); }
+            else if constexpr (scalar_bit_width == 64) 
+            { data = detail::insert_x64<index>(data, std::bit_cast<std::uint64_t>(newval)); }
+            else
+            {
+                FOYE_SIMD_UNREACHABLE;
+            }
         }
 
         template<std::size_t index>
@@ -340,17 +308,36 @@ namespace fyx::simd
         basic_mask<lane_width / 2, bit_width / 2> high_part() const noexcept requires(bit_width == 256)
         { return basic_mask<lane_width / 2, bit_width / 2>{fyx::simd::detail::split_high(this->data)}; }
 
-#if !defined(FOYE_SIMD_DISABLE_PERFORMANCE_NOTICE)
+#if !defined(FOYE_SIMD_DISABLE_BASIC_MASK_SQEARE_BRACKET_ACCESS_PERFORMANCE_NOTICE)
         FOYE_SIMD_ERROR_WHEN_CALLED(
-            "The design purpose of this function is to prioritize convenience. "
+            "The design purpose of this function is to prioritize convenience. It has an extremely high cost of performance loss"
             "If performance is to be considered, please use other solutions like: scalar_t basic_mask<lane_width, bits_width>::extract_at<index>()."
-            "or define FOYE_SIMD_DISABLE_PERFORMANCE_NOTICE to disable this error")
+            "or define FOYE_SIMD_DISABLE_BASIC_MASK_SQEARE_BRACKET_ACCESS_PERFORMANCE_NOTICE to disable this error")
 #endif
         bool operator [] (std::size_t index) const noexcept
         {
             alignas(alignof(vector_t)) bit_contain_t temp[count_element] = {};
             fyx::simd::detail::store_aligned(this->data, temp);
             return (temp[index] != bit_contain_t{ 0 });
+        }
+
+        template<std::size_t index>
+        requires((index <= (lane_width - 1) && index >= 0))
+        void repalce_at(bool newval) noexcept
+        {
+            constexpr bit_contain_t true_val{ std::numeric_limits<bit_contain_t>::max() };
+            constexpr bit_contain_t false_val{ 0 };
+
+            if constexpr (single_width_bits == 8)
+            { data = detail::insert_x8<index>(data, std::bit_cast<std::uint8_t>(newval ? true_val : false_val)); }
+            else if constexpr (single_width_bits == 16)
+            { data = detail::insert_x16<index>(data, std::bit_cast<std::uint16_t>(newval ? true_val : false_val)); }
+            else if constexpr (single_width_bits == 32)
+            { data = detail::insert_x32<index>(data, std::bit_cast<std::uint32_t>(newval ? true_val : false_val)); }
+            else if constexpr (single_width_bits == 64)
+            { data = detail::insert_x64<index>(data, std::bit_cast<std::uint64_t>(newval ? true_val : false_val)); }
+            else
+            { FOYE_SIMD_UNREACHABLE; }
         }
 
         template<std::size_t index>
@@ -366,12 +353,8 @@ namespace fyx::simd
             else if constexpr (single_width_bytes == 8)
             { return static_cast<bool>(fyx::simd::detail::extract_x64<index>(data)); }
             else
-            {
-                FOYE_SIMD_UNREACHABLE;
-            }
+            { FOYE_SIMD_UNREACHABLE; }
         }
-
-
 
         vector_t data;
     };
