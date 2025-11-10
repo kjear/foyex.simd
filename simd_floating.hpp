@@ -922,6 +922,76 @@ namespace fyx::simd
     }
 #endif
 
+#if defined(FOYE_SIMD_ENABLE_SVML_INVSQRT)
+    float32x8 invsqrt(float32x8 input) { return float32x8{ _mm256_invsqrt_ps(input.data) }; }
+    float64x4 invsqrt(float64x4 input) { return float64x4{ _mm256_invsqrt_pd(input.data) }; }
+    float32x4 invsqrt(float32x4 input) { return float32x4{ _mm_invsqrt_ps(input.data) }; }
+    float64x2 invsqrt(float64x2 input) { return float64x2{ _mm_invsqrt_pd(input.data) }; }
+#else
+    namespace detail
+    {
+        template<typename simd_type>
+        simd_type invsqrtF32_soft_simulation(simd_type x)
+        {
+            simd_type half = multiplies(x, load_brocast<simd_type>(0.5f));
+            simd_type t = rsqrt(x);
+
+            simd_type t_sq = multiplies(t, t);
+            t = fma(t, fnma(t_sq, half, load_brocast<simd_type>(1.5f)), allzero_bits_as<simd_type>());
+            return t;
+        }
+
+        template<typename simd_type>
+        simd_type invsqrtF64_soft_simulation(simd_type x)
+        {
+            return divide(load_brocast<simd_type>(1.), sqrt(x));
+        }
+    }
+    float32x8 invsqrt(float32x8 input) { return detail::invsqrtF32_soft_simulation(input); }
+    float64x4 invsqrt(float64x4 input) { return detail::invsqrtF64_soft_simulation(input); }
+    float32x4 invsqrt(float32x4 input) { return detail::invsqrtF32_soft_simulation(input); }
+    float64x2 invsqrt(float64x2 input) { return detail::invsqrtF64_soft_simulation(input); }
+#endif
+#if defined(_FOYE_SIMD_HAS_FP16_)
+    float16x8 invsqrt(float16x8 input)
+    {
+        float32x8 a32{ cvt8lane_fp16_to_fp32(input.data) };
+        float32x8 res32 = fyx::simd::invsqrt(a32);
+        return float16x8{ cvt8lane_fp32_to_fp16(res32.data) };
+    }
+    float16x16 invsqrt(float16x16 input)
+    {
+        float32x8 res32_low = fyx::simd::invsqrt(float32x8{ cvt8lane_fp16_to_fp32(detail::split_low(input.data)) });
+        float32x8 res32_high = fyx::simd::invsqrt(float32x8{ cvt8lane_fp16_to_fp32(detail::split_high(input.data)) });
+
+        return float16x16{ detail::merge(
+            cvt8lane_fp32_to_fp16(res32_low.data),
+            cvt8lane_fp32_to_fp16(res32_high.data)) };
+    }
+#endif
+#if defined(_FOYE_SIMD_HAS_BF16_)
+    bfloat16x8 invsqrt(bfloat16x8 input)
+    {
+        float32x8 a32{ cvt8lane_bf16_to_fp32(input.data) };
+        float32x8 res32 = fyx::simd::invsqrt(a32);
+        return bfloat16x8{ cvt8lane_fp32_to_bf16(res32.data) };
+    }
+    bfloat16x16 invsqrt(bfloat16x16 input)
+    {
+        float32x8 res32_low = fyx::simd::invsqrt(float32x8{ cvt8lane_bf16_to_fp32(detail::split_low(input.data)) });
+        float32x8 res32_high = fyx::simd::invsqrt(float32x8{ cvt8lane_bf16_to_fp32(detail::split_high(input.data)) });
+
+        return bfloat16x16{ detail::merge(
+            cvt8lane_fp32_to_bf16(res32_low.data),
+            cvt8lane_fp32_to_bf16(res32_high.data)) };
+    }
+#endif
+
+
+
+
+
+
 #if defined(FOYE_SIMD_ENABLE_SVML_EXP)
     float32x8 exp(float32x8 input) { return float32x8{ _mm256_exp_ps(input.data) }; }
     float64x4 exp(float64x4 input) { return float64x4{ _mm256_exp_pd(input.data) }; }
