@@ -33,6 +33,7 @@ namespace fyx::simd
     mask_64x2 greater(float64x2 lhs, float64x2 rhs) { return mask_64x2{ _mm_cmpgt_pd(lhs.data, rhs.data) }; }
     mask_64x4 greater(float64x4 lhs, float64x4 rhs) { return mask_64x4{ _mm256_cmp_pd(lhs.data, rhs.data, _CMP_GT_OQ) }; }
 
+
     mask_8x16 equal(sint8x16 lhs, sint8x16 rhs) { return mask_8x16{ _mm_cmpeq_epi8(lhs.data, rhs.data) }; }
     mask_16x8 equal(sint16x8 lhs, sint16x8 rhs) { return mask_16x8{ _mm_cmpeq_epi16(lhs.data, rhs.data) }; }
     mask_32x4 equal(sint32x4 lhs, sint32x4 rhs) { return mask_32x4{ _mm_cmpeq_epi32(lhs.data, rhs.data) }; }
@@ -49,15 +50,37 @@ namespace fyx::simd
     mask_16x16 equal(uint16x16 lhs, uint16x16 rhs) { return mask_16x16{ _mm256_cmpeq_epi16(lhs.data, rhs.data) }; }
     mask_32x8 equal(uint32x8 lhs, uint32x8 rhs) { return mask_32x8{ _mm256_cmpeq_epi32(lhs.data, rhs.data) }; }
     mask_64x4 equal(uint64x4 lhs, uint64x4 rhs) { return mask_64x4{ _mm256_cmpeq_epi64(lhs.data, rhs.data) }; }
+
+    mask_8x16 equal(uint8x16 lhs, sint8x16 rhs) { return mask_8x16{ _mm_cmpeq_epi8(lhs.data, rhs.data) }; }
+    mask_16x8 equal(uint16x8 lhs, sint16x8 rhs) { return mask_16x8{ _mm_cmpeq_epi16(lhs.data, rhs.data) }; }
+    mask_32x4 equal(uint32x4 lhs, sint32x4 rhs) { return mask_32x4{ _mm_cmpeq_epi32(lhs.data, rhs.data) }; }
+    mask_64x2 equal(uint64x2 lhs, sint64x2 rhs) { return mask_64x2{ _mm_cmpeq_epi64(lhs.data, rhs.data) }; }
+    mask_8x32 equal(uint8x32 lhs, sint8x32 rhs) { return mask_8x32{ _mm256_cmpeq_epi8(lhs.data, rhs.data) }; }
+    mask_16x16 equal(uint16x16 lhs, sint16x16 rhs) { return mask_16x16{ _mm256_cmpeq_epi16(lhs.data, rhs.data) }; }
+    mask_32x8 equal(uint32x8 lhs, sint32x8 rhs) { return mask_32x8{ _mm256_cmpeq_epi32(lhs.data, rhs.data) }; }
+    mask_64x4 equal(uint64x4 lhs, sint64x4 rhs) { return mask_64x4{ _mm256_cmpeq_epi64(lhs.data, rhs.data) }; }
+    
+    mask_8x16 equal(sint8x16 lhs, uint8x16 rhs) { return mask_8x16{ _mm_cmpeq_epi8(lhs.data, rhs.data) }; }
+    mask_16x8 equal(sint16x8 lhs, uint16x8 rhs) { return mask_16x8{ _mm_cmpeq_epi16(lhs.data, rhs.data) }; }
+    mask_32x4 equal(sint32x4 lhs, uint32x4 rhs) { return mask_32x4{ _mm_cmpeq_epi32(lhs.data, rhs.data) }; }
+    mask_64x2 equal(sint64x2 lhs, uint64x2 rhs) { return mask_64x2{ _mm_cmpeq_epi64(lhs.data, rhs.data) }; }
+    mask_8x32 equal(sint8x32 lhs, uint8x32 rhs) { return mask_8x32{ _mm256_cmpeq_epi8(lhs.data, rhs.data) }; }
+    mask_16x16 equal(sint16x16 lhs, uint16x16 rhs) { return mask_16x16{ _mm256_cmpeq_epi16(lhs.data, rhs.data) }; }
+    mask_32x8 equal(sint32x8 lhs, uint32x8 rhs) { return mask_32x8{ _mm256_cmpeq_epi32(lhs.data, rhs.data) }; }
+    mask_64x4 equal(sint64x4 lhs, uint64x4 rhs) { return mask_64x4{ _mm256_cmpeq_epi64(lhs.data, rhs.data) }; }
+
     mask_32x4 equal(float32x4 lhs, float32x4 rhs) { return mask_32x4{ _mm_cmpeq_ps(rhs.data, lhs.data) }; }
     mask_32x8 equal(float32x8 lhs, float32x8 rhs) { return mask_32x8{ _mm256_cmp_ps(rhs.data, lhs.data, _CMP_EQ_OQ) }; }
     mask_64x2 equal(float64x2 lhs, float64x2 rhs) { return mask_64x2{ _mm_cmpeq_pd(rhs.data, lhs.data) }; }
     mask_64x4 equal(float64x4 lhs, float64x4 rhs) { return mask_64x4{ _mm256_cmp_pd(rhs.data, lhs.data, _CMP_EQ_OQ) }; }
 
-    template<typename simd_type> requires(fyx::simd::is_basic_simd_v<simd_type>)
-    mask_from_simd_t<simd_type> not_equal(simd_type lhs, simd_type rhs)
+    template<typename simd_lhs_type, typename simd_rhs_type> 
+    requires(is_basic_simd_v<simd_lhs_type> && is_basic_simd_v<simd_rhs_type>
+    && simd_lhs_type::bit_width == simd_rhs_type::bit_width
+        && simd_lhs_type::scalar_bit_width == simd_rhs_type::scalar_bit_width)
+    mask_from_simd_t<simd_lhs_type> not_equal(simd_lhs_type lhs, simd_rhs_type rhs)
     {
-        return mask_from_simd_t<simd_type>{ fyx::simd::bitwise_NOT(simd_type{ fyx::simd::equal(lhs, rhs) }).data };
+        return mask_from_simd_t<simd_lhs_type>{ fyx::simd::bitwise_NOT(simd_lhs_type{ fyx::simd::equal(lhs, rhs) }).data };
     }
 
     template<typename simd_type> requires(fyx::simd::is_basic_simd_v<simd_type>)
@@ -216,18 +239,25 @@ basic_mask<unsigned_simd_type::lane_width, unsigned_simd_type::bit_width> funcna
 #endif
 }
 
+#if defined(FOYE_SIMD_ENABLE_COMPARISON_OPERATORS)
 namespace fyx::simd
 {
-    template<typename simd_type> requires(is_basic_simd_v<simd_type>)
-    mask_from_simd_t<simd_type> operator == (simd_type lhs, simd_type rhs)
+    template<typename simd_lhs_type, typename simd_rhs_type>
+        requires(is_basic_simd_v<simd_lhs_type>&& is_basic_simd_v<simd_rhs_type>
+    && simd_lhs_type::bit_width == simd_rhs_type::bit_width
+        && simd_lhs_type::scalar_bit_width == simd_rhs_type::scalar_bit_width)
+    mask_from_simd_t<simd_lhs_type> operator == (simd_lhs_type lhs, simd_rhs_type rhs)
     {
         return equal(lhs, rhs);
     }
 
-    template<typename simd_type> requires(is_basic_simd_v<simd_type>)
-    mask_from_simd_t<simd_type> operator != (simd_type lhs, simd_type rhs)
+    template<typename simd_lhs_type, typename simd_rhs_type>
+        requires(is_basic_simd_v<simd_lhs_type>&& is_basic_simd_v<simd_rhs_type>
+    && simd_lhs_type::bit_width == simd_rhs_type::bit_width
+        && simd_lhs_type::scalar_bit_width == simd_rhs_type::scalar_bit_width)
+    mask_from_simd_t<simd_lhs_type> operator != (simd_lhs_type lhs, simd_rhs_type rhs)
     {
-        return bitwise_NOT(equal(lhs, rhs).as_basic_simd<simd_type>()).as_basic_mask();
+        return bitwise_NOT(equal(lhs, rhs).as_basic_simd<simd_lhs_type>()).as_basic_mask();
     }
 
     template<typename simd_type> requires(is_basic_simd_v<simd_type>)
@@ -302,5 +332,6 @@ namespace fyx::simd
         return less_equal(lhs, rhs_vec);
     }
 }
+#endif
 
 #endif
