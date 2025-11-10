@@ -74,11 +74,11 @@ namespace fyx::simd
 	sint64x4 nearbyint_as_i(float64x4 input) { return sint64x4{ _mm256_cvtpd_epi64(fyx::simd::nearbyint(input).data) }; }
 	sint64x2 nearbyint_as_i(float64x2 input) { return sint64x2{ _mm_cvtpd_epi64(fyx::simd::nearbyint(input).data) }; }
 
-	template<typename target_simd, typename source_simd> target_simd expand(source_simd) { __assume(false); }
-	template<typename target_simd, typename source_simd> target_simd expand_low(source_simd) { __assume(false); }
-	template<typename target_simd, typename source_simd> target_simd expand_high(source_simd) { __assume(false); }
-	template<typename target_simd, typename source_simd> target_simd floating(source_simd) { __assume(false); }
-	template<typename target_simd, typename source_simd> target_simd narrowing(source_simd) { __assume(false); }
+	template<typename target_simd, typename source_simd> target_simd expand(source_simd) { FOYE_SIMD_UNREACHABLE; }
+	template<typename target_simd, typename source_simd> target_simd expand_low(source_simd) { FOYE_SIMD_UNREACHABLE; }
+	template<typename target_simd, typename source_simd> target_simd expand_high(source_simd) { FOYE_SIMD_UNREACHABLE; }
+	template<typename target_simd, typename source_simd> target_simd floating(source_simd) { FOYE_SIMD_UNREACHABLE; }
+	template<typename target_simd, typename source_simd> target_simd narrowing(source_simd) { FOYE_SIMD_UNREACHABLE; }
 
 	template<> uint16x16 expand<uint16x16, uint8x16>(uint8x16 input) { return uint16x16{ _mm256_cvtepu8_epi16(input.data) }; }
 	template<> sint16x16 expand<sint16x16, uint8x16>(uint8x16 input) { return sint16x16{ _mm256_cvtepu8_epi16(input.data) }; }
@@ -530,7 +530,7 @@ namespace fyx::simd
 		}
 		else
 		{
-			__assume(false);
+			FOYE_SIMD_UNREACHABLE;
 		}
 	}
 
