@@ -28,6 +28,10 @@
 #define _FOYE_SIMD_HAS_BF16_
 #endif
 
+
+#define FOYE_SIMD_UNREACHABLE (__assume(false))
+
+
 #define FOYE_SIMD_ERROR_WHEN_CALLED(text) __declspec(deprecated(text))
 
 #if !defined(FOYE_SIMD_DISABLE_PERFORMANCE_NOTICE)
@@ -357,7 +361,16 @@ template<> struct setter_by_each_invoker<return_type, scalar_size, lane_width>\
     FOYE_SIMD_INTRINSIC __m256d merge(__m128d low, __m128d high) { return _mm256_insertf128_pd(_mm256_castpd128_pd256(low), high, 0x1); }
 
 
-    template<typename dst, typename src> dst basic_reinterpret(src) { __assume(false); }
+    FOYE_SIMD_INTRINSIC __m256  replace_high_128(__m256  original,  __m128 new_high) { return _mm256_insertf128_ps(original, new_high, 1); }
+    FOYE_SIMD_INTRINSIC __m256i replace_high_128(__m256i original, __m128i new_high) { return _mm256_inserti128_si256(original, new_high, 1); }
+    FOYE_SIMD_INTRINSIC __m256d replace_high_128(__m256d original, __m128d new_high) { return _mm256_insertf128_pd(original, new_high, 1); }
+
+    FOYE_SIMD_INTRINSIC __m256  replace_low_128(__m256  original, __m128 new_high) { return _mm256_insertf128_ps(original, new_high, 0); }
+    FOYE_SIMD_INTRINSIC __m256i replace_low_128(__m256i original, __m128i new_high) { return _mm256_inserti128_si256(original, new_high, 0); }
+    FOYE_SIMD_INTRINSIC __m256d replace_low_128(__m256d original, __m128d new_high) { return _mm256_insertf128_pd(original, new_high, 0); }
+
+
+    template<typename dst, typename src> dst basic_reinterpret(src) { FOYE_SIMD_UNREACHABLE; }
     template<> FOYE_SIMD_INTRINSIC __m128 basic_reinterpret(__m128 v) { return v; }
     template<> FOYE_SIMD_INTRINSIC __m128d basic_reinterpret(__m128d v) { return v; }
     template<> FOYE_SIMD_INTRINSIC __m128i basic_reinterpret(__m128i v) { return v; }
