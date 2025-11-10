@@ -145,7 +145,7 @@ namespace fyx::simd
                 else if constexpr (mask_type::lane_width == 4) { mask = _mm_movemask_ps(_mm_castsi128_ps(value)); }
                 else if constexpr (mask_type::lane_width == 8) { mask = _mm_movemask_epi8(_mm_packs_epi16(value, value)); }
                 else if constexpr (mask_type::lane_width == 16) { mask = _mm_movemask_epi8(value); }
-                else { __assume(false); }
+                else { FOYE_SIMD_UNREACHABLE; }
             }
             else if constexpr (fyx::simd::is_256bits_mask_v<mask_type>)
             {
@@ -154,11 +154,11 @@ namespace fyx::simd
                 else if constexpr (mask_type::lane_width == 8) { mask = _mm256_movemask_ps(_mm256_castsi256_ps(value)); }
                 else if constexpr (mask_type::lane_width == 16) { mask = _mm256_movemask_epi8(_mm256_packs_epi16(value, value)); }
                 else if constexpr (mask_type::lane_width == 32) { mask = _mm256_movemask_epi8(value); }
-                else { __assume(false); }
+                else { FOYE_SIMD_UNREACHABLE; }
             }
             else
             {
-                __assume(false);
+                FOYE_SIMD_UNREACHABLE;
             }
 
             unsigned long index;
@@ -221,7 +221,7 @@ namespace fyx::simd
             }
             else
             {
-                __assume(false);
+                FOYE_SIMD_UNREACHABLE;
             }
         }
         else
@@ -259,7 +259,7 @@ namespace fyx::simd
             }
             else
             {
-                __assume(false);
+                FOYE_SIMD_UNREACHABLE;
             }
         }
     }
@@ -291,7 +291,7 @@ namespace fyx::simd
             }
             else 
             {
-                __assume(false);
+                FOYE_SIMD_UNREACHABLE;
             }
         }
         else if constexpr (fyx::simd::is_256bits_mask_v<mask_type>)
@@ -310,7 +310,7 @@ namespace fyx::simd
             }
             else 
             {
-                __assume(false);
+                FOYE_SIMD_UNREACHABLE;
             }
         }
 
@@ -345,7 +345,7 @@ namespace fyx::simd
         }
         else
         {
-            __assume(false);
+            FOYE_SIMD_UNREACHABLE;
         }
     }
 
@@ -364,7 +364,7 @@ namespace fyx::simd
         }
         else
         {
-            __assume(false);
+            FOYE_SIMD_UNREACHABLE;
         }
     }
 
@@ -460,7 +460,7 @@ namespace fyx::simd
             store_unaligned(result, mem_addr);
 #endif
 #else
-            __assume(false);
+            FOYE_SIMD_UNREACHABLE;
 #endif
         }
     }
