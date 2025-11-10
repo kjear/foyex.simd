@@ -279,6 +279,9 @@ namespace fyx::simd
         static constexpr std::size_t single_width_bytes = single_width_bits / CHAR_BIT;
 
         using vector_t = std::conditional_t<bits_width == 128, __m128i, __m256i>;
+        using bit_contain_t = std::conditional_t<single_width_bytes == 1, std::uint8_t,
+            std::conditional_t<single_width_bytes == 2, std::uint16_t,
+            std::conditional_t<single_width_bytes == 4, std::uint32_t, std::uint64_t>>>;
 
         basic_mask() noexcept = default;
 
@@ -345,19 +348,9 @@ namespace fyx::simd
 #endif
         bool operator [] (std::size_t index) const noexcept
         {
-            using fmt_t = std::conditional_t<
-                single_width_bytes == 1,
-                std::uint8_t,
-                std::conditional_t<
-                single_width_bytes == 2,
-                std::uint16_t,
-                std::conditional_t<
-                single_width_bytes == 4, std::uint32_t, std::uint64_t>>
-                >;
-
-            alignas(alignof(vector_t)) fmt_t temp[count_element] = {};
+            alignas(alignof(vector_t)) bit_contain_t temp[count_element] = {};
             fyx::simd::detail::store_aligned(this->data, temp);
-            return (temp[index] != fmt_t{ 0 });
+            return (temp[index] != bit_contain_t{ 0 });
         }
 
         template<std::size_t index>
@@ -584,19 +577,12 @@ namespace fyx::simd
     && (sizeof...(Args) == mask_type::lane_width))
     mask_type load_by_each(Args&& ... args)
     {
-        constexpr std::size_t single_width_bits = mask_type::single_width_bits;
-        constexpr std::size_t single_width = mask_type::single_width_bytes;
-
-        using bits_contain_type = std::conditional_t<single_width == 1, std::uint8_t,
-            std::conditional_t<single_width == 2, std::uint16_t,
-            std::conditional_t<single_width == 4, std::uint32_t, std::uint64_t>>>;
-
         using setter_invoker = fyx::simd::detail::setter_by_each_invoker<
-            typename mask_type::vector_t, sizeof(bits_contain_type),
+            typename mask_type::vector_t, sizeof(typename mask_type::bit_contain_t),
             mask_type::lane_width>;
 
-        constexpr bits_contain_type true_val{ std::numeric_limits<bits_contain_type>::max() };
-        constexpr bits_contain_type false_val{ 0 };
+        constexpr typename mask_type::bit_contain_t true_val{ std::numeric_limits<typename mask_type::bit_contain_t>::max() };
+        constexpr typename mask_type::bit_contain_t false_val{ 0 };
 
         setter_invoker invoker{};
         typename mask_type::vector_t result{};
