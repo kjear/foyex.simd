@@ -3004,6 +3004,69 @@ namespace fyx::simd
 #endif
 
 
+    namespace detail
+    {
+        template<typename simd_type>
+        void modf_impl(simd_type input,
+            basic_simd<detail::integral_t<simd_type::scalar_bit_width, true>, simd_type::bit_width>* integer_part, 
+            simd_type* decimal_part)
+        {
+            using sint_simd_t = basic_simd<detail::integral_t<simd_type::scalar_bit_width, true>, simd_type::bit_width>;
+
+            sint_simd_t int_vec = trunc_as_i(input);
+            simd_type int_vec_float = floating<simd_type>(int_vec);
+            *decimal_part = minus(input, int_vec_float);
+            *integer_part = int_vec;
+        }
+    }
+
+    void modf(float32x8 input, sint32x8* integer_part, float32x8* decimal_part) { detail::modf_impl(input, integer_part, decimal_part); }
+    void modf(float32x4 input, sint32x4* integer_part, float32x4* decimal_part) { detail::modf_impl(input, integer_part, decimal_part); }
+    void modf(float64x4 input, sint64x4* integer_part, float64x4* decimal_part) { detail::modf_impl(input, integer_part, decimal_part); }
+    void modf(float64x2 input, sint64x2* integer_part, float64x2* decimal_part) { detail::modf_impl(input, integer_part, decimal_part); }
+
+#if defined(_FOYE_SIMD_HAS_FP16_)
+    void modf(float16x8 input, sint16x8* integer_part, float16x8* decimal_part)
+    {
+        sint32x8 integer_part_{};
+        float32x8 decimal_part_{};
+        detail::modf_impl(expand<float32x8>(input), &integer_part_, &decimal_part_);
+        *integer_part = narrowing<sint16x8>(integer_part_);
+        *decimal_part = narrowing<float16x8>(decimal_part_);
+    }
+
+    void modf(float16x16 input, sint16x16* integer_part, float16x16* decimal_part)
+    {
+        sint32x8 integer_part_low, integer_part_high;
+        float32x8 decimal_part_low, decimal_part_high;
+        detail::modf_impl(expand_low<float32x8>(input), &integer_part_low, &decimal_part_low);
+        detail::modf_impl(expand_high<float32x8>(input), &integer_part_high, &decimal_part_high);
+
+        *integer_part = merge(narrowing<sint16x8>(integer_part_low), narrowing<sint16x8>(integer_part_high));
+        *decimal_part = merge(narrowing<float16x8>(decimal_part_low), narrowing<float16x8>(decimal_part_high));
+    }
+#endif
+#if defined(_FOYE_SIMD_HAS_BF16_)
+    void modf(bfloat16x8 input, sint16x8* integer_part, bfloat16x8* decimal_part)
+    {
+        sint32x8 integer_part_{};
+        float32x8 decimal_part_{};
+        detail::modf_impl(expand<float32x8>(input), &integer_part_, &decimal_part_);
+        *integer_part = narrowing<sint16x8>(integer_part_);
+        *decimal_part = narrowing<bfloat16x8>(decimal_part_);
+    }
+
+    void modf(bfloat16x16 input, sint16x16* integer_part, bfloat16x16* decimal_part)
+    {
+        sint32x8 integer_part_low, integer_part_high;
+        float32x8 decimal_part_low, decimal_part_high;
+        detail::modf_impl(expand_low<float32x8>(input), &integer_part_low, &decimal_part_low);
+        detail::modf_impl(expand_high<float32x8>(input), &integer_part_high, &decimal_part_high);
+
+        *integer_part = merge(narrowing<sint16x8>(integer_part_low), narrowing<sint16x8>(integer_part_high));
+        *decimal_part = merge(narrowing<bfloat16x8>(decimal_part_low), narrowing<bfloat16x8>(decimal_part_high));
+    }
+#endif
 }
 
 #endif
