@@ -9,6 +9,136 @@
 
 namespace fyx::simd
 {
+    /*template<typename simd_type> requires(is_128bits_simd_v<simd_type>)
+    simd_type bitwise_OR(simd_type lhs, simd_type rhs)
+    {
+        if constexpr (std::is_same_v<float, typename simd_type::scalar_t>)
+             { return simd_type{ _mm_or_ps(lhs.data, rhs.data) }; }
+        else if constexpr (std::is_same_v<double, typename simd_type::scalar_t>)
+             { return simd_type{ _mm_or_pd(lhs.data, rhs.data) }; }
+        else { return simd_type{ _mm_or_si128(lhs.data, rhs.data) }; }
+    }
+
+    template<typename simd_type> requires(is_256bits_simd_v<simd_type>)
+    simd_type bitwise_OR(simd_type lhs, simd_type rhs)
+    {
+        if constexpr (std::is_same_v<float, typename simd_type::scalar_t>)
+             { return simd_type{ _mm256_or_ps(lhs.data, rhs.data) }; }
+        else if constexpr (std::is_same_v<double, typename simd_type::scalar_t>)
+             { return simd_type{ _mm256_or_pd(lhs.data, rhs.data) }; }
+        else { return simd_type{ _mm256_or_si256(lhs.data, rhs.data) }; }
+    }
+
+    template<typename simd_type, typename mask_type>
+        requires(is_128bits_simd_v<simd_type> && is_basic_mask_v<mask_type>
+        && simd_type::lane_width == mask_type::lane_width && simd_type::bit_width == mask_type::bit_width)
+    simd_type bitwise_OR(simd_type lhs, mask_type rhs)
+    {
+        using simd_type_vector_type = typename simd_type::vector_t;
+        simd_type_vector_type mask_vec = detail::basic_reinterpret<simd_type_vector_type>(rhs.data);
+        if constexpr (std::is_same_v<float, typename simd_type::scalar_t>)
+             { return simd_type{ _mm_or_ps(lhs.data, mask_vec) }; }
+        else if constexpr (std::is_same_v<double, typename simd_type::scalar_t>)
+             { return simd_type{ _mm_or_pd(lhs.data, mask_vec) }; }
+        else { return simd_type{ _mm_or_si128(lhs.data, mask_vec) };  }
+    }
+
+    template<typename simd_type, typename mask_type>
+        requires(is_128bits_simd_v<simd_type>&& is_basic_mask_v<mask_type>
+    && simd_type::lane_width == mask_type::lane_width && simd_type::bit_width == mask_type::bit_width)
+    simd_type bitwise_OR(mask_type lhs, simd_type rhs) { return bitwise_OR<simd_type, mask_type>(rhs, lhs); }
+
+    template<typename simd_type, typename mask_type>
+        requires(is_256bits_simd_v<simd_type>&& is_basic_mask_v<mask_type>
+    && simd_type::lane_width == mask_type::lane_width && simd_type::bit_width == mask_type::bit_width)
+    simd_type bitwise_OR(simd_type lhs, mask_type rhs)
+    {
+        using simd_type_vector_type = typename simd_type::vector_t;
+        simd_type_vector_type mask_vec = detail::basic_reinterpret<simd_type_vector_type>(rhs.data);
+        if constexpr (std::is_same_v<float, typename simd_type::scalar_t>)
+             { return simd_type{ _mm256_or_ps(lhs.data, mask_vec) }; }
+        else if constexpr (std::is_same_v<double, typename simd_type::scalar_t>)
+             { return simd_type{ _mm256_or_pd(lhs.data, mask_vec) }; }
+        else { return simd_type{ _mm256_or_si256(lhs.data, mask_vec) }; }
+    }
+
+    template<typename simd_type, typename mask_type>
+    requires(is_256bits_simd_v<simd_type>&& is_basic_mask_v<mask_type>
+    && simd_type::lane_width == mask_type::lane_width && simd_type::bit_width == mask_type::bit_width)
+    simd_type bitwise_OR(mask_type lhs, simd_type rhs) { return bitwise_OR<simd_type, mask_type>(rhs, lhs); }
+
+    template<typename mask_type> requires(is_128bits_mask_v<mask_type>)
+    mask_type bitwise_OR(mask_type lhs, mask_type rhs) { return simd_type{ _mm_or_si128(lhs.data, rhs.data) }; }
+
+    template<typename mask_type> requires(is_256bits_mask_v<mask_type>)
+    mask_type bitwise_OR(mask_type lhs, mask_type rhs) { return simd_type{ _mm256_or_si256(lhs.data, rhs.data) }; }*/
+
+#define DEFINE_BITWISE_OPERATION_SERIES(function_suffix, intrin_suffix)\
+    template<typename simd_type> requires(is_128bits_simd_v<simd_type>)\
+    simd_type bitwise_##function_suffix(simd_type lhs, simd_type rhs)\
+    {\
+        if constexpr (std::is_same_v<float, typename simd_type::scalar_t>)\
+             { return simd_type{ _mm_##intrin_suffix##_ps(lhs.data, rhs.data) }; }\
+        else if constexpr (std::is_same_v<double, typename simd_type::scalar_t>)\
+             { return simd_type{ _mm_##intrin_suffix##_pd(lhs.data, rhs.data) }; }\
+        else { return simd_type{ _mm_##intrin_suffix##_si128(lhs.data, rhs.data) }; }\
+    }\
+    template<typename simd_type> requires(is_256bits_simd_v<simd_type>)\
+    simd_type bitwise_##function_suffix(simd_type lhs, simd_type rhs)\
+    {\
+        if constexpr (std::is_same_v<float, typename simd_type::scalar_t>)\
+             { return simd_type{ _mm256_##intrin_suffix##_ps(lhs.data, rhs.data) }; }\
+        else if constexpr (std::is_same_v<double, typename simd_type::scalar_t>)\
+             { return simd_type{ _mm256_##intrin_suffix##_pd(lhs.data, rhs.data) }; }\
+        else { return simd_type{ _mm256_##intrin_suffix##_si256(lhs.data, rhs.data) }; }\
+    }\
+    template<typename simd_type, typename mask_type>\
+        requires(is_128bits_simd_v<simd_type>&& is_basic_mask_v<mask_type>\
+    && simd_type::lane_width == mask_type::lane_width && simd_type::bit_width == mask_type::bit_width)\
+    simd_type bitwise_##function_suffix(simd_type lhs, mask_type rhs)\
+    {\
+        using simd_type_vector_type = typename simd_type::vector_t;\
+        simd_type_vector_type mask_vec = detail::basic_reinterpret<simd_type_vector_type>(rhs.data);\
+        if constexpr (std::is_same_v<float, typename simd_type::scalar_t>)\
+             { return simd_type{ _mm_##intrin_suffix##_ps(lhs.data, mask_vec) }; }\
+        else if constexpr (std::is_same_v<double, typename simd_type::scalar_t>)\
+             { return simd_type{ _mm_##intrin_suffix##_pd(lhs.data, mask_vec) }; }\
+        else { return simd_type{ _mm_##intrin_suffix##_si128(lhs.data, mask_vec) }; }\
+    }\
+    template<typename simd_type, typename mask_type>\
+        requires(is_128bits_simd_v<simd_type>&& is_basic_mask_v<mask_type>\
+    && simd_type::lane_width == mask_type::lane_width && simd_type::bit_width == mask_type::bit_width)\
+    simd_type bitwise_##function_suffix(mask_type lhs, simd_type rhs) { return bitwise_##function_suffix<simd_type, mask_type>(rhs, lhs); }\
+    template<typename simd_type, typename mask_type>\
+        requires(is_256bits_simd_v<simd_type>&& is_basic_mask_v<mask_type>\
+    && simd_type::lane_width == mask_type::lane_width && simd_type::bit_width == mask_type::bit_width)\
+    simd_type bitwise_##function_suffix(simd_type lhs, mask_type rhs)\
+    {\
+        using simd_type_vector_type = typename simd_type::vector_t;\
+        simd_type_vector_type mask_vec = detail::basic_reinterpret<simd_type_vector_type>(rhs.data);\
+        if constexpr (std::is_same_v<float, typename simd_type::scalar_t>)\
+             { return simd_type{ _mm256_##intrin_suffix##_ps(lhs.data, mask_vec) }; }\
+        else if constexpr (std::is_same_v<double, typename simd_type::scalar_t>)\
+             { return simd_type{ _mm256_##intrin_suffix##_pd(lhs.data, mask_vec) }; }\
+        else { return simd_type{ _mm256_##intrin_suffix##_si256(lhs.data, mask_vec) }; }\
+    }\
+    template<typename simd_type, typename mask_type>\
+        requires(is_256bits_simd_v<simd_type>&& is_basic_mask_v<mask_type>\
+    && simd_type::lane_width == mask_type::lane_width && simd_type::bit_width == mask_type::bit_width)\
+    simd_type bitwise_##function_suffix(mask_type lhs, simd_type rhs) { return bitwise_##function_suffix<simd_type, mask_type>(rhs, lhs); }\
+    template<typename mask_type> requires(is_128bits_mask_v<mask_type>)\
+    mask_type bitwise_##function_suffix(mask_type lhs, mask_type rhs) { return mask_type{ _mm_##intrin_suffix##_si128(lhs.data, rhs.data) }; }\
+    template<typename mask_type> requires(is_256bits_mask_v<mask_type>)\
+    mask_type bitwise_##function_suffix(mask_type lhs, mask_type rhs) { return mask_type{ _mm256_##intrin_suffix##_si256(lhs.data, rhs.data) }; }
+
+}
+
+
+
+
+
+namespace fyx::simd
+{
 #define DEFINE_BITWISE_OPERATION(NAME, intrin_suffix) \
 template<typename T, std::size_t bits_width> \
 basic_simd<T, bits_width> bitwise_##NAME(basic_simd<T, bits_width> lhs, basic_simd<T, bits_width> rhs) \
@@ -41,6 +171,7 @@ basic_simd<T, bits_width> bitwise_##NAME(basic_simd<T, bits_width> lhs, basic_si
     DEFINE_BITWISE_OPERATION(ANDNOT, andnot)
 #undef DEFINE_BITWISE_OPERATION
 
+
     template<typename T, std::size_t bits_width>
     basic_simd<T, bits_width> bitwise_NOT(basic_simd<T, bits_width> arg)
     {
@@ -52,6 +183,7 @@ basic_simd<T, bits_width> bitwise_##NAME(basic_simd<T, bits_width> lhs, basic_si
         return basic_simd<T, bits_width>{ bitwise_XOR(arg, allone) };
     }
 }
+
 
 namespace fyx::simd
 {
