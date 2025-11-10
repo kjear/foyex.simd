@@ -32,7 +32,7 @@ namespace fyx::simd
 	float64x4 nearbyint(float64x4 input) { return float64x4{ _mm256_round_pd(input.data, _MM_FROUND_NEARBYINT) }; }
 	float64x2 nearbyint(float64x2 input) { return float64x2{ _mm_round_pd(input.data, _MM_FROUND_NEARBYINT) }; }
 
-#if !defined(FOYE_SIMD_ENABLE_SVML)
+#if defined(FOYE_SIMD_ENABLE_SVML_TRUNC)
 	float32x8 trunc(float32x8 input) { return float32x8{ _mm256_trunc_ps(input.data) }; }
 	float32x4 trunc(float32x4 input) { return float32x4{ _mm_trunc_ps(input.data) }; }
 	float64x4 trunc(float64x4 input) { return float64x4{ _mm256_trunc_pd(input.data) }; }
@@ -479,11 +479,6 @@ namespace fyx::simd
 #endif
 }
 #endif
-
-
-
-
-
 
 namespace fyx::simd
 {
