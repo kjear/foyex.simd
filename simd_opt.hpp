@@ -9,136 +9,6 @@
 
 namespace fyx::simd
 {
-    /*template<typename simd_type> requires(is_128bits_simd_v<simd_type>)
-    simd_type bitwise_OR(simd_type lhs, simd_type rhs)
-    {
-        if constexpr (std::is_same_v<float, typename simd_type::scalar_t>)
-             { return simd_type{ _mm_or_ps(lhs.data, rhs.data) }; }
-        else if constexpr (std::is_same_v<double, typename simd_type::scalar_t>)
-             { return simd_type{ _mm_or_pd(lhs.data, rhs.data) }; }
-        else { return simd_type{ _mm_or_si128(lhs.data, rhs.data) }; }
-    }
-
-    template<typename simd_type> requires(is_256bits_simd_v<simd_type>)
-    simd_type bitwise_OR(simd_type lhs, simd_type rhs)
-    {
-        if constexpr (std::is_same_v<float, typename simd_type::scalar_t>)
-             { return simd_type{ _mm256_or_ps(lhs.data, rhs.data) }; }
-        else if constexpr (std::is_same_v<double, typename simd_type::scalar_t>)
-             { return simd_type{ _mm256_or_pd(lhs.data, rhs.data) }; }
-        else { return simd_type{ _mm256_or_si256(lhs.data, rhs.data) }; }
-    }
-
-    template<typename simd_type, typename mask_type>
-        requires(is_128bits_simd_v<simd_type> && is_basic_mask_v<mask_type>
-        && simd_type::lane_width == mask_type::lane_width && simd_type::bit_width == mask_type::bit_width)
-    simd_type bitwise_OR(simd_type lhs, mask_type rhs)
-    {
-        using simd_type_vector_type = typename simd_type::vector_t;
-        simd_type_vector_type mask_vec = detail::basic_reinterpret<simd_type_vector_type>(rhs.data);
-        if constexpr (std::is_same_v<float, typename simd_type::scalar_t>)
-             { return simd_type{ _mm_or_ps(lhs.data, mask_vec) }; }
-        else if constexpr (std::is_same_v<double, typename simd_type::scalar_t>)
-             { return simd_type{ _mm_or_pd(lhs.data, mask_vec) }; }
-        else { return simd_type{ _mm_or_si128(lhs.data, mask_vec) };  }
-    }
-
-    template<typename simd_type, typename mask_type>
-        requires(is_128bits_simd_v<simd_type>&& is_basic_mask_v<mask_type>
-    && simd_type::lane_width == mask_type::lane_width && simd_type::bit_width == mask_type::bit_width)
-    simd_type bitwise_OR(mask_type lhs, simd_type rhs) { return bitwise_OR<simd_type, mask_type>(rhs, lhs); }
-
-    template<typename simd_type, typename mask_type>
-        requires(is_256bits_simd_v<simd_type>&& is_basic_mask_v<mask_type>
-    && simd_type::lane_width == mask_type::lane_width && simd_type::bit_width == mask_type::bit_width)
-    simd_type bitwise_OR(simd_type lhs, mask_type rhs)
-    {
-        using simd_type_vector_type = typename simd_type::vector_t;
-        simd_type_vector_type mask_vec = detail::basic_reinterpret<simd_type_vector_type>(rhs.data);
-        if constexpr (std::is_same_v<float, typename simd_type::scalar_t>)
-             { return simd_type{ _mm256_or_ps(lhs.data, mask_vec) }; }
-        else if constexpr (std::is_same_v<double, typename simd_type::scalar_t>)
-             { return simd_type{ _mm256_or_pd(lhs.data, mask_vec) }; }
-        else { return simd_type{ _mm256_or_si256(lhs.data, mask_vec) }; }
-    }
-
-    template<typename simd_type, typename mask_type>
-    requires(is_256bits_simd_v<simd_type>&& is_basic_mask_v<mask_type>
-    && simd_type::lane_width == mask_type::lane_width && simd_type::bit_width == mask_type::bit_width)
-    simd_type bitwise_OR(mask_type lhs, simd_type rhs) { return bitwise_OR<simd_type, mask_type>(rhs, lhs); }
-
-    template<typename mask_type> requires(is_128bits_mask_v<mask_type>)
-    mask_type bitwise_OR(mask_type lhs, mask_type rhs) { return simd_type{ _mm_or_si128(lhs.data, rhs.data) }; }
-
-    template<typename mask_type> requires(is_256bits_mask_v<mask_type>)
-    mask_type bitwise_OR(mask_type lhs, mask_type rhs) { return simd_type{ _mm256_or_si256(lhs.data, rhs.data) }; }*/
-
-#define DEFINE_BITWISE_OPERATION_SERIES(function_suffix, intrin_suffix)\
-    template<typename simd_type> requires(is_128bits_simd_v<simd_type>)\
-    simd_type bitwise_##function_suffix(simd_type lhs, simd_type rhs)\
-    {\
-        if constexpr (std::is_same_v<float, typename simd_type::scalar_t>)\
-             { return simd_type{ _mm_##intrin_suffix##_ps(lhs.data, rhs.data) }; }\
-        else if constexpr (std::is_same_v<double, typename simd_type::scalar_t>)\
-             { return simd_type{ _mm_##intrin_suffix##_pd(lhs.data, rhs.data) }; }\
-        else { return simd_type{ _mm_##intrin_suffix##_si128(lhs.data, rhs.data) }; }\
-    }\
-    template<typename simd_type> requires(is_256bits_simd_v<simd_type>)\
-    simd_type bitwise_##function_suffix(simd_type lhs, simd_type rhs)\
-    {\
-        if constexpr (std::is_same_v<float, typename simd_type::scalar_t>)\
-             { return simd_type{ _mm256_##intrin_suffix##_ps(lhs.data, rhs.data) }; }\
-        else if constexpr (std::is_same_v<double, typename simd_type::scalar_t>)\
-             { return simd_type{ _mm256_##intrin_suffix##_pd(lhs.data, rhs.data) }; }\
-        else { return simd_type{ _mm256_##intrin_suffix##_si256(lhs.data, rhs.data) }; }\
-    }\
-    template<typename simd_type, typename mask_type>\
-        requires(is_128bits_simd_v<simd_type>&& is_basic_mask_v<mask_type>\
-    && simd_type::lane_width == mask_type::lane_width && simd_type::bit_width == mask_type::bit_width)\
-    simd_type bitwise_##function_suffix(simd_type lhs, mask_type rhs)\
-    {\
-        using simd_type_vector_type = typename simd_type::vector_t;\
-        simd_type_vector_type mask_vec = detail::basic_reinterpret<simd_type_vector_type>(rhs.data);\
-        if constexpr (std::is_same_v<float, typename simd_type::scalar_t>)\
-             { return simd_type{ _mm_##intrin_suffix##_ps(lhs.data, mask_vec) }; }\
-        else if constexpr (std::is_same_v<double, typename simd_type::scalar_t>)\
-             { return simd_type{ _mm_##intrin_suffix##_pd(lhs.data, mask_vec) }; }\
-        else { return simd_type{ _mm_##intrin_suffix##_si128(lhs.data, mask_vec) }; }\
-    }\
-    template<typename simd_type, typename mask_type>\
-        requires(is_128bits_simd_v<simd_type>&& is_basic_mask_v<mask_type>\
-    && simd_type::lane_width == mask_type::lane_width && simd_type::bit_width == mask_type::bit_width)\
-    simd_type bitwise_##function_suffix(mask_type lhs, simd_type rhs) { return bitwise_##function_suffix<simd_type, mask_type>(rhs, lhs); }\
-    template<typename simd_type, typename mask_type>\
-        requires(is_256bits_simd_v<simd_type>&& is_basic_mask_v<mask_type>\
-    && simd_type::lane_width == mask_type::lane_width && simd_type::bit_width == mask_type::bit_width)\
-    simd_type bitwise_##function_suffix(simd_type lhs, mask_type rhs)\
-    {\
-        using simd_type_vector_type = typename simd_type::vector_t;\
-        simd_type_vector_type mask_vec = detail::basic_reinterpret<simd_type_vector_type>(rhs.data);\
-        if constexpr (std::is_same_v<float, typename simd_type::scalar_t>)\
-             { return simd_type{ _mm256_##intrin_suffix##_ps(lhs.data, mask_vec) }; }\
-        else if constexpr (std::is_same_v<double, typename simd_type::scalar_t>)\
-             { return simd_type{ _mm256_##intrin_suffix##_pd(lhs.data, mask_vec) }; }\
-        else { return simd_type{ _mm256_##intrin_suffix##_si256(lhs.data, mask_vec) }; }\
-    }\
-    template<typename simd_type, typename mask_type>\
-        requires(is_256bits_simd_v<simd_type>&& is_basic_mask_v<mask_type>\
-    && simd_type::lane_width == mask_type::lane_width && simd_type::bit_width == mask_type::bit_width)\
-    simd_type bitwise_##function_suffix(mask_type lhs, simd_type rhs) { return bitwise_##function_suffix<simd_type, mask_type>(rhs, lhs); }\
-    template<typename mask_type> requires(is_128bits_mask_v<mask_type>)\
-    mask_type bitwise_##function_suffix(mask_type lhs, mask_type rhs) { return mask_type{ _mm_##intrin_suffix##_si128(lhs.data, rhs.data) }; }\
-    template<typename mask_type> requires(is_256bits_mask_v<mask_type>)\
-    mask_type bitwise_##function_suffix(mask_type lhs, mask_type rhs) { return mask_type{ _mm256_##intrin_suffix##_si256(lhs.data, rhs.data) }; }
-
-}
-
-
-
-
-
-namespace fyx::simd
-{
 #define DEFINE_BITWISE_OPERATION(NAME, intrin_suffix) \
 template<typename T, std::size_t bits_width> \
 basic_simd<T, bits_width> bitwise_##NAME(basic_simd<T, bits_width> lhs, basic_simd<T, bits_width> rhs) \
@@ -183,7 +53,6 @@ basic_simd<T, bits_width> bitwise_##NAME(basic_simd<T, bits_width> lhs, basic_si
         return basic_simd<T, bits_width>{ bitwise_XOR(arg, allone) };
     }
 }
-
 
 namespace fyx::simd
 {
@@ -267,7 +136,7 @@ namespace fyx::simd
     float64x2 multiplies(float64x2 lhs, float64x2 rhs) { return float64x2{ _mm_mul_pd(lhs.data, rhs.data) }; }
     _FOYE_SIMD_DISPATCH_8LANE_V_VV_(multiplies, _mm256_mul_ps)
 
-#if defined(_FOYE_SIMD_ENABLE_EMULATED_)
+#if defined(FOYE_SIMD_ENABLE_EMULATED_MULTIPLIES)
     sint8x16 multiplies(sint8x16 lhs, sint8x16 rhs)
     {
         return narrowing<sint8x16>(
@@ -407,22 +276,22 @@ namespace fyx::simd
     _FOYE_SIMD_DISPATCH_8LANE_V_VV_(max, _mm256_max_ps)
 
 
-#if defined(_FOYE_SIMD_ENABLE_EMULATED_)
-#define DEFINE_MINMAX_FALLBACK(input_simd_type, cmpfunc) \
-input_simd_type cmpfunc(input_simd_type lhs, input_simd_type rhs)\
-{\
-    alignas(alignof(typename input_simd_type::vector_t))\
-        typename input_simd_type::scalar_t temp[input_simd_type::lane_width * 2];\
-    fyx::simd::store_aligned(lhs, temp + 0);\
-    fyx::simd::store_aligned(rhs, temp + input_simd_type::lane_width);\
-    for (std::size_t i = 0; i < input_simd_type::lane_width; ++i)\
-    {\
-        temp[i] = (::std::cmpfunc)(temp[i], temp[i + input_simd_type::lane_width]);\
-    }\
-    return fyx::simd::load_aligned<input_simd_type>(temp);\
+#if defined(FOYE_SIMD_ENABLE_EMULATED_64BIT_MINMAX)
+#define DEFINE_MINMAX_FALLBACK(input_simd_type, cmpfunc)                                    \
+input_simd_type cmpfunc(input_simd_type lhs, input_simd_type rhs)                           \
+{                                                                                           \
+    alignas(alignof(typename input_simd_type::vector_t))                                    \
+        typename input_simd_type::scalar_t temp[input_simd_type::lane_width * 2];           \
+    fyx::simd::store_aligned(lhs, temp + 0);                                                \
+    fyx::simd::store_aligned(rhs, temp + input_simd_type::lane_width);                      \
+    for (std::size_t i = 0; i < input_simd_type::lane_width; ++i)                           \
+    {                                                                                       \
+        temp[i] = (::std::cmpfunc)(temp[i], temp[i + input_simd_type::lane_width]);         \
+    }                                                                                       \
+    return fyx::simd::load_aligned<input_simd_type>(temp);                                  \
 }
-#define DEFINE_MINMAX_FALLBACK_2WAY_DISPATCH(input_simd_type) \
-    DEFINE_MINMAX_FALLBACK(input_simd_type, min) \
+#define DEFINE_MINMAX_FALLBACK_2WAY_DISPATCH(input_simd_type)                               \
+    DEFINE_MINMAX_FALLBACK(input_simd_type, min)                                            \
     DEFINE_MINMAX_FALLBACK(input_simd_type, max)
 
     DEFINE_MINMAX_FALLBACK_2WAY_DISPATCH(uint64x2)
@@ -456,18 +325,12 @@ input_simd_type cmpfunc(input_simd_type lhs, input_simd_type rhs)\
     float64x4 clamp(float64x4 input, float64x4 minval, float64x4 maxval) { return float64x4{ fyx::simd::min(fyx::simd::max(input, minval), maxval) }; }
 
 #if defined(_FOYE_SIMD_HAS_FP16_)
-    float16x8 clamp(float16x8 input, float16x8 minval, float16x8 maxval) 
-    { return float16x8{ fyx::simd::min(fyx::simd::max(input, minval), maxval) }; }
-
-    float16x16 clamp(float16x16 input, float16x16 minval, float16x16 maxval)
-    { return float16x16{ fyx::simd::min(fyx::simd::max(input, minval), maxval) }; }
+    float16x8 clamp(float16x8 input, float16x8 minval, float16x8 maxval) { return float16x8{ fyx::simd::min(fyx::simd::max(input, minval), maxval) }; }
+    float16x16 clamp(float16x16 input, float16x16 minval, float16x16 maxval) { return float16x16{ fyx::simd::min(fyx::simd::max(input, minval), maxval) }; }
 #endif
 #if defined(_FOYE_SIMD_HAS_FP16_)
-    bfloat16x8 clamp(bfloat16x8 input, bfloat16x8 minval, bfloat16x8 maxval)
-    { return bfloat16x8{ fyx::simd::min(fyx::simd::max(input, minval), maxval) }; }
-
-    bfloat16x16 clamp(bfloat16x16 input, bfloat16x16 minval, bfloat16x16 maxval)
-    { return bfloat16x16{ fyx::simd::min(fyx::simd::max(input, minval), maxval) }; }
+    bfloat16x8 clamp(bfloat16x8 input, bfloat16x8 minval, bfloat16x8 maxval) { return bfloat16x8{ fyx::simd::min(fyx::simd::max(input, minval), maxval) }; }
+    bfloat16x16 clamp(bfloat16x16 input, bfloat16x16 minval, bfloat16x16 maxval) { return bfloat16x16{ fyx::simd::min(fyx::simd::max(input, minval), maxval) }; }
 #endif
 
     FOYE_SIMD_ERROR_WHEN_CALLED("No one needs the absolute value of an unsigned integer") uint8x16 abs(uint8x16 input) { return input; }
@@ -486,7 +349,7 @@ input_simd_type cmpfunc(input_simd_type lhs, input_simd_type rhs)\
     sint16x16 abs(sint16x16 input) { return sint16x16{ _mm256_abs_epi16(input.data) }; }
     sint32x8 abs(sint32x8 input) { return sint32x8{ _mm256_abs_epi32(input.data) }; }
 
-#if defined(_FOYE_SIMD_ENABLE_EMULATED_)
+#if defined(FOYE_SIMD_ENABLE_EMULATED_64BIT_ABS)
     sint64x2 abs(sint64x2 input)
     {
         __m128i sign_mask = _mm_cmpgt_epi64(_mm_setzero_si128(), input.data);
@@ -509,7 +372,6 @@ input_simd_type cmpfunc(input_simd_type lhs, input_simd_type rhs)\
     float32x4 abs(float32x4 input) { return float32x4{ _mm_andnot_ps(_mm_set1_ps(-0.0f), input.data) }; }
     float64x4 abs(float64x4 input) { return float64x4{ _mm256_andnot_pd(_mm256_set1_pd(-0.0), input.data) }; }
     float64x2 abs(float64x2 input) { return float64x2{ _mm_andnot_pd(_mm_set1_pd(-0.0), input.data) }; }
-
     _FOYE_SIMD_DISPATCH_8LANE_V_V_(abs, _FOYE_SIMD_ABS_PS_)
 #endif
 
@@ -517,7 +379,7 @@ input_simd_type cmpfunc(input_simd_type lhs, input_simd_type rhs)\
     uint16x8 avg(uint16x8 arg0, uint8x16 arg1) { return uint16x8{ _mm_avg_epu16(arg0.data, arg1.data) }; }
     uint8x32 avg(uint8x32 arg0, uint8x32 arg1) { return uint8x32{ _mm256_avg_epu8(arg0.data, arg1.data) }; }
     uint16x16 avg(uint16x16 arg0, uint16x16 arg1) { return uint16x16{ _mm256_avg_epu16(arg0.data, arg1.data) }; }
-#if defined(_FOYE_SIMD_ENABLE_EMULATED_)
+#if defined(FOYE_SIMD_ENABLE_EMULATED_AVG)
     float32x8 avg(float32x8 arg0, float32x8 arg1)
     {
         return float32x8{ _mm256_fmadd_ps(_mm256_add_ps(arg0.data, arg1.data),
@@ -671,7 +533,7 @@ namespace fyx::simd
     sint16x16 sign_transfer(sint16x16 data_source, sint16x16 sign_from) { return sint16x16{ _mm256_sign_epi16(data_source.data, sign_from.data) }; }
     sint32x8 sign_transfer(sint32x8 data_source, sint32x8 sign_from) { return sint32x8{ _mm256_sign_epi32(data_source.data, sign_from.data) }; }
 
-#if defined(_FOYE_SIMD_ENABLE_EMULATED_)
+#if defined(FOYE_SIMD_ENABLE_EMULATED_64BIT_SIGN_TRANSFER)
     sint64x2 sign_transfer(sint64x2 data_source, sint64x2 sign_from)
     {
         alignas(16) std::int64_t a_arr[2];
@@ -808,6 +670,7 @@ namespace fyx::simd
 #endif
 }
 
+#if defined(FOYE_SIMD_ENABLE_NUMERIC_OPERATORS)
 namespace fyx::simd
 {
     template<typename simd_type>
@@ -857,52 +720,48 @@ namespace fyx::simd
         return bitwise_NOT(input);
     }
 
-#define _FOYE_SIMD_OPERATOR_DEFINE_(intrinsic_function, operator_symbol) \
-template<typename simd_type> requires(is_basic_simd_v<simd_type>) \
-simd_type operator operator_symbol (simd_type lhs, simd_type rhs)\
-{\
-    return intrinsic_function(lhs, rhs);\
-}\
-template<typename simd_type> requires(is_basic_simd_v<simd_type>)\
-simd_type& operator operator_symbol##= (simd_type& lhs, simd_type rhs)\
-{\
-    lhs = intrinsic_function(lhs, rhs);\
-    return lhs;\
-}\
-template<typename simd_type, typename rhs_type>\
-    requires(is_basic_simd_v<simd_type>\
-&& std::is_convertible_v<typename simd_type::scalar_t, rhs_type>)\
-simd_type operator operator_symbol (simd_type lhs, rhs_type rhs)\
-{\
-    return intrinsic_function(lhs, load_brocast<simd_type>(rhs));\
-}\
-template<typename simd_type, typename rhs_type>\
-    requires(is_basic_simd_v<simd_type>\
-&& std::is_convertible_v<typename simd_type::scalar_t, rhs_type>)\
-simd_type& operator operator_symbol##= (simd_type& lhs, rhs_type rhs)\
-{\
-    lhs = intrinsic_function(lhs, load_brocast<simd_type>(rhs));\
-    return lhs;\
-}
+#define _FOYE_SIMD_OPERATOR_DEFINE_(intrinsic_function, operator_symbol)            \
+    template<typename simd_type> requires(is_basic_simd_v<simd_type>)               \
+    simd_type operator operator_symbol (simd_type lhs, simd_type rhs)               \
+    {                                                                               \
+        return intrinsic_function(lhs, rhs);                                        \
+    }                                                                               \
+    template<typename simd_type> requires(is_basic_simd_v<simd_type>)               \
+    simd_type& operator operator_symbol##= (simd_type& lhs, simd_type rhs)          \
+    {                                                                               \
+        lhs = intrinsic_function(lhs, rhs);                                         \
+        return lhs;                                                                 \
+    }                                                                               \
+    template<typename simd_type, typename rhs_type>                                 \
+        requires(is_basic_simd_v<simd_type>                                         \
+    && std::is_convertible_v<typename simd_type::scalar_t, rhs_type>)               \
+    simd_type operator operator_symbol (simd_type lhs, rhs_type rhs)                \
+    {                                                                               \
+        return intrinsic_function(lhs, load_brocast<simd_type>(rhs));               \
+    }                                                                               \
+    template<typename simd_type, typename rhs_type>                                 \
+        requires(is_basic_simd_v<simd_type>                                         \
+    && std::is_convertible_v<typename simd_type::scalar_t, rhs_type>)               \
+    simd_type& operator operator_symbol##= (simd_type& lhs, rhs_type rhs)           \
+    {                                                                               \
+        lhs = intrinsic_function(lhs, load_brocast<simd_type>(rhs));                \
+        return lhs;                                                                 \
+    }
 
     _FOYE_SIMD_OPERATOR_DEFINE_(plus, +)
     _FOYE_SIMD_OPERATOR_DEFINE_(minus, -)
     _FOYE_SIMD_OPERATOR_DEFINE_(divide, /)
     _FOYE_SIMD_OPERATOR_DEFINE_(multiplies, *)
-
     _FOYE_SIMD_OPERATOR_DEFINE_(bitwise_AND, &)
     _FOYE_SIMD_OPERATOR_DEFINE_(bitwise_OR, |)
     _FOYE_SIMD_OPERATOR_DEFINE_(bitwise_XOR, ^)
-
     _FOYE_SIMD_OPERATOR_DEFINE_(shift_left, <<)
     _FOYE_SIMD_OPERATOR_DEFINE_(shift_right, >>)
-
-        _FOYE_SIMD_OPERATOR_DEFINE_(remainder, %)
+    _FOYE_SIMD_OPERATOR_DEFINE_(remainder, %)
 
 #undef _FOYE_SIMD_OPERATOR_DEFINE_
 }
-
-
+#endif
 
 
 #undef DEF_NOTSUPPORTED_IMPLEMENT
