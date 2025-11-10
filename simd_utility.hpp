@@ -18,12 +18,12 @@
 #define FOYE_SIMD_CONST __declspec(noalias)
 #define FOYE_SIMD_INTRINSIC inline __forceinline
 
-#if __has_include("foye_float16.hpp")
+#if __has_include("foye_float16.hpp") && defined(FOYE_SIMD_ENABLE_FP16)
 #include "foye_float16.hpp"
 #define _FOYE_SIMD_HAS_FP16_
 #endif
 
-#if __has_include("foye_bfloat16.hpp")
+#if __has_include("foye_bfloat16.hpp") && defined(FOYE_SIMD_ENABLE_BF16)
 #include "foye_bfloat16.hpp"
 #define _FOYE_SIMD_HAS_BF16_
 #endif
@@ -36,9 +36,9 @@
 
 #if !defined(FOYE_SIMD_DISABLE_PERFORMANCE_NOTICE)
 #pragma warning(error: 4996)
-#define FOYE_SIMD_PERFORMANCE_MATTER \
-	FOYE_SIMD_ERROR_WHEN_CALLED("The design purpose of this function is to prioritize convenience. "\
-						         "If performance is to be considered, please use other solutions. "\
+#define FOYE_SIMD_PERFORMANCE_MATTER                                                                                \
+	FOYE_SIMD_ERROR_WHEN_CALLED("The design purpose of this function is to prioritize convenience. "                \
+						         "If performance is to be considered, please use other solutions. "                 \
                                  "or define FOYE_SIMD_DISABLE_PERFORMANCE_NOTICE to disable this error")
 #else
 #define FOYE_SIMD_PERFORMANCE_MATTER
@@ -50,32 +50,24 @@ namespace fyx::simd::detail
     struct dependent_false : std::false_type {};
 }
 
-#define DEF_NOTSUPPORTED_IMPLEMENT(funcd) \
-template<typename T = void> \
+#define DEF_NOTSUPPORTED_IMPLEMENT(funcd)                                                                           \
+template<typename T = void>                                                                                         \
 funcd \
 { \
-    static_assert(fyx::simd::detail::dependent_false<T>::value, \
-        "There is no instruction that supports this operation to implement function: " #funcd \
-        ". you define _FOYE_ENABLE_EMULATED_ to use a simulated version of this function"); \
+    static_assert(fyx::simd::detail::dependent_false<T>::value,                                                     \
+        "There is no instruction that supports this operation to implement function: " #funcd                       \
+        ". you define _FOYE_ENABLE_EMULATED_ to use a simulated version of this function");                         \
 }
 
-#define DEF_NOSUITABLE_IMPLEMENT(funcd) \
-template<typename T = void> \
-funcd \
-{ \
-    static_assert(fyx::simd::detail::dependent_false<T>::value, \
-        "There is no suitable instruction combination to achieve this function: " #funcd); \
+#define DEF_NOSUITABLE_IMPLEMENT(funcd)                                                                             \
+template<typename T = void>                                                                                         \
+funcd                                                                                                               \
+{                                                                                                                   \
+    static_assert(fyx::simd::detail::dependent_false<T>::value,                                                     \
+        "There is no suitable instruction combination to achieve this function: " #funcd);                          \
 }
 
 #define FOYE_SIMD_UNIMPLEMENTED static_assert(sizeof(int) == 0, "This function is not implemented yet")
-
-
-#define FOYE_SIMD_DEBUG_MSG(msg) \
-do\
-{\
-    std::cout << msg << std::endl;\
-} while (0)
-
 
 namespace fyx::simd
 {
@@ -99,8 +91,8 @@ namespace fyx::simd
 #endif
         );
 
-#define FOYE_SIMD_CHECK_SCALAR_AVAILABLE(_scalar_type_) \
-    static_assert(fyx::simd::is_available_scalar_type_for_basic_simd<_scalar_type_>, \
+#define FOYE_SIMD_CHECK_SCALAR_AVAILABLE(_scalar_type_)                                     \
+    static_assert(fyx::simd::is_available_scalar_type_for_basic_simd<_scalar_type_>,        \
     "Scalar type " #_scalar_type_ " is not available for basic_simd")
 }
 
@@ -506,8 +498,9 @@ template<> struct setter_by_each_invoker<return_type, scalar_size, lane_width>\
     template<std::size_t index> FOYE_SIMD_INTRINSIC __m256d insert_x64(__m256d src, std::uint64_t new_val) { return _mm256_insert_epi64(_mm256_castpd_si256(src), std::bit_cast<long long>(new_val), index); }
 
 
-
-
+    template<typename return_type> FOYE_SIMD_INTRINSIC return_type extract_first_x16x8(__m128i source) { return std::bit_cast<return_type>(_mm_cvtsi128_si16(source)); }
+    template<typename return_type> FOYE_SIMD_INTRINSIC return_type extract_first_x32x4(__m128i source) { return std::bit_cast<return_type>(_mm_cvtsi128_si32(source)); }
+    template<typename return_type> FOYE_SIMD_INTRINSIC return_type extract_first_x64x2(__m128i source) { return std::bit_cast<return_type>(_mm_cvtsi128_si64x(source)); }
 }
 
 
