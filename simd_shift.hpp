@@ -92,7 +92,7 @@ namespace fyx::simd
                 shift_amount));
     }
 
-#if defined(_FOYE_SIMD_ENABLE_EMULATED_)
+#if defined(FOYE_SIMD_ENABLE_SHIFT_EMULATED)
     uint8x16 shift_left(uint8x16 input, std::uint8_t shift_amount)
     {
         uint16x16 input16x16 = fyx::simd::expand<uint16x16>(input);
@@ -171,7 +171,7 @@ namespace fyx::simd
         __m256i result = _mm256_srl_epi64(input.data, count);
         return uint64x4{ result };
     }
-#if defined(_FOYE_SIMD_ENABLE_EMULATED_)
+#if defined(FOYE_SIMD_ENABLE_SHIFT_EMULATED)
     uint8x16 shift_right(uint8x16 input, std::uint8_t shift_amount)
     {
         uint16x16 input16x16 = fyx::simd::expand<uint16x16>(input);
@@ -237,7 +237,7 @@ namespace fyx::simd
             arr[2] >> shift_amount, arr[3] >> shift_amount
         ) };
     }
-#if defined(_FOYE_SIMD_ENABLE_EMULATED_)
+#if defined(FOYE_SIMD_ENABLE_SHIFT_EMULATED)
     sint8x16 shift_right(sint8x16 input, std::uint8_t shift_amount)
     {
         sint16x16 input16x16 = fyx::simd::expand<sint16x16>(input);
@@ -260,7 +260,7 @@ namespace fyx::simd
 
 namespace fyx::simd
 {
-#if defined(_FOYE_SIMD_ENABLE_EMULATED_)
+#if defined(FOYE_SIMD_ENABLE_SHIFT_EMULATED)
     template<int shift_amount> requires(shift_amount >= 0 && shift_amount <= 7)
         uint8x16 shift_left(uint8x16 input)
     {
@@ -282,7 +282,7 @@ namespace fyx::simd
     template<int shift_amount> requires(shift_amount >= 0 && shift_amount <= 63)
         uint64x2 shift_left(uint64x2 input) { return uint64x2{ _mm_slli_epi64(input.data, shift_amount) }; }
 
-#if defined(_FOYE_SIMD_ENABLE_EMULATED_)
+#if defined(FOYE_SIMD_ENABLE_SHIFT_EMULATED)
     template<int shift_amount> requires(shift_amount >= 0 && shift_amount <= 7)
         uint8x32 shift_left(uint8x32 input)
     {
@@ -308,7 +308,7 @@ namespace fyx::simd
         uint64x4 shift_left(uint64x4 input) { return uint64x4{ _mm256_slli_epi64(input.data, shift_amount) }; }
 
 
-#if defined(_FOYE_SIMD_ENABLE_EMULATED_)
+#if defined(FOYE_SIMD_ENABLE_SHIFT_EMULATED)
     template<int shift_amount> requires(shift_amount >= 0 && shift_amount <= 7)
         sint8x16 shift_left(sint8x16 input)
     {
@@ -330,7 +330,7 @@ namespace fyx::simd
     template<int shift_amount> requires(shift_amount >= 0 && shift_amount <= 63)
         sint64x2 shift_left(sint64x2 input) { return sint64x2{ _mm_slli_epi64(input.data, shift_amount) }; }
 
-#if defined(_FOYE_SIMD_ENABLE_EMULATED_)
+#if defined(FOYE_SIMD_ENABLE_SHIFT_EMULATED)
     template<int shift_amount> requires(shift_amount >= 0 && shift_amount <= 7)
         sint8x32 shift_left(sint8x32 input)
     {
@@ -357,7 +357,7 @@ namespace fyx::simd
 
 namespace fyx::simd
 {
-#if defined(_FOYE_SIMD_ENABLE_EMULATED_)
+#if defined(FOYE_SIMD_ENABLE_SHIFT_EMULATED)
     template<int shift_amount> requires(shift_amount >= 0 && shift_amount <= 7)
         uint8x16 shift_right(uint8x16 input)
     {
@@ -379,7 +379,7 @@ namespace fyx::simd
     template<int shift_amount> requires(shift_amount >= 0 && shift_amount <= 63)
         uint64x2 shift_right(uint64x2 input) { return uint64x2{ _mm_srli_epi64(input.data, shift_amount) }; }
 
-#if defined(_FOYE_SIMD_ENABLE_EMULATED_)
+#if defined(FOYE_SIMD_ENABLE_SHIFT_EMULATED)
     template<int shift_amount> requires(shift_amount >= 0 && shift_amount <= 7)
         uint8x32 shift_right(uint8x32 input)
     {
@@ -405,7 +405,7 @@ namespace fyx::simd
         uint64x4 shift_right(uint64x4 input) { return uint64x4{ _mm256_srli_epi64(input.data, shift_amount) }; }
 
 
-#if defined(_FOYE_SIMD_ENABLE_EMULATED_)
+#if defined(FOYE_SIMD_ENABLE_SHIFT_EMULATED)
     template<int shift_amount> requires(shift_amount >= 0 && shift_amount <= 7)
         sint8x16 shift_right(sint8x16 input)
     {
@@ -427,7 +427,7 @@ namespace fyx::simd
     template<int shift_amount> requires(shift_amount >= 0 && shift_amount <= 63)
         sint64x2 shift_right(sint64x2 input) { return sint64x2{ _mm_srai_epi64(input.data, shift_amount) }; }
 
-#if defined(_FOYE_SIMD_ENABLE_EMULATED_)
+#if defined(FOYE_SIMD_ENABLE_SHIFT_EMULATED)
     template<int shift_amount> requires(shift_amount >= 0 && shift_amount <= 7)
         sint8x32 shift_right(sint8x32 input)
     {
@@ -455,7 +455,7 @@ namespace fyx::simd
 
 namespace fyx::simd
 {
-#if defined(_FOYE_SIMD_ENABLE_EMULATED_)
+#if defined(FOYE_SIMD_ENABLE_SHIFT_EMULATED)
     uint16x8 shift_left(uint16x8 input, uint16x8 shift_amount)
     {
         __m256i temp32 = _mm256_cvtepu16_epi32(input.data);
@@ -496,7 +496,7 @@ namespace fyx::simd
         return uint64x2{ _mm_sllv_epi64(input.data, shift_amount.data) };
     }
 
-#if defined(_FOYE_SIMD_ENABLE_EMULATED_)
+#if defined(FOYE_SIMD_ENABLE_SHIFT_EMULATED)
     uint16x16 shift_left(uint16x16 input, uint16x16 shift_amount)
     {
         uint16x8 res_low = fyx::simd::shift_left(input.low_part(), 
@@ -535,7 +535,7 @@ namespace fyx::simd
         return uint64x4{ _mm256_sllv_epi64(input.data, shift_amount.data) };
     }
 
-#if defined(_FOYE_SIMD_ENABLE_EMULATED_)
+#if defined(FOYE_SIMD_ENABLE_SHIFT_EMULATED)
     sint8x16 shift_left(sint8x16 input, sint8x16 shift_amount)
     {
         return fyx::simd::reinterpret<sint8x16>(
@@ -564,7 +564,7 @@ namespace fyx::simd
         return sint64x2{ _mm_sllv_epi64(input.data, shift_amount.data) };
     }
 
-#if defined(_FOYE_SIMD_ENABLE_EMULATED_)
+#if defined(FOYE_SIMD_ENABLE_SHIFT_EMULATED)
     sint8x32 shift_left(sint8x32 input, sint8x32 shift_amount)
     {
         return fyx::simd::reinterpret<sint8x32>(
@@ -596,7 +596,7 @@ namespace fyx::simd
 
 namespace fyx::simd
 {
-#if defined(_FOYE_SIMD_ENABLE_EMULATED_)
+#if defined(FOYE_SIMD_ENABLE_SHIFT_EMULATED)
     uint16x8 shift_right(uint16x8 input, uint16x8 shift_amount)
     {
         __m256i temp32 = _mm256_cvtepu16_epi32(input.data);
@@ -637,7 +637,7 @@ namespace fyx::simd
         return uint64x2{ _mm_srlv_epi64(input.data, shift_amount.data) };
     }
 
-#if defined(_FOYE_SIMD_ENABLE_EMULATED_)
+#if defined(FOYE_SIMD_ENABLE_SHIFT_EMULATED)
     uint16x16 shift_right(uint16x16 input, uint16x16 shift_amount)
     {
         uint16x8 res_low = fyx::simd::shift_right(input.low_part(), shift_amount.low_part());
@@ -705,7 +705,7 @@ namespace fyx::simd
         return sint64x4{ _mm256_srav_epi64(input.data, shift_amount.data) };
     }
 
-#if defined(_FOYE_SIMD_ENABLE_EMULATED_)
+#if defined(FOYE_SIMD_ENABLE_SHIFT_EMULATED)
     sint8x16 shift_right(sint8x16 input, sint8x16 shift_amount)
     {
         sint16x16 input16 = fyx::simd::expand<sint16x16>(input);
