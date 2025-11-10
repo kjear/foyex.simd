@@ -494,15 +494,15 @@ namespace fyx::simd
         return static_cast<typename float64x4::scalar_t>(_mm_cvtsd_f64(v2));
     }
 
-#define DEFINE_HMINHMAX_FALLBACK(input_simd_type, cmpfunc)\
-input_simd_type::scalar_t h##cmpfunc##(input_simd_type input)\
-{\
-    alignas(alignof(typename input_simd_type::vector_t))\
-        typename input_simd_type::scalar_t temp[input_simd_type::lane_width];\
-    fyx::simd::store_aligned(input, temp);\
-    return *std::##cmpfunc##_element(std::begin(temp), std::end(temp));\
+#define DEFINE_HMINHMAX_FALLBACK(input_simd_type, cmpfunc)                                              \
+input_simd_type::scalar_t h##cmpfunc##(input_simd_type input)                                           \
+{                                                                                                       \
+    alignas(alignof(typename input_simd_type::vector_t))                                                \
+        typename input_simd_type::scalar_t temp[input_simd_type::lane_width];                           \
+    fyx::simd::store_aligned(input, temp);                                                              \
+    return *std::##cmpfunc##_element(std::begin(temp), std::end(temp));                                 \
 }
-#define DEFINE_HMINHMAX_FALLBACK_2WAY_DISPATCH(input_simd_type) \
+#define DEFINE_HMINHMAX_FALLBACK_2WAY_DISPATCH(input_simd_type)                                         \
     DEFINE_HMINHMAX_FALLBACK(input_simd_type, min) DEFINE_HMINHMAX_FALLBACK(input_simd_type, max)
 
     DEFINE_HMINHMAX_FALLBACK_2WAY_DISPATCH(uint64x2)
@@ -516,13 +516,13 @@ input_simd_type::scalar_t h##cmpfunc##(input_simd_type input)\
 
 namespace fyx::simd
 {
-#define DEF_NOSUITABLE_IMPLEMENT__HMUL(funcd) \
-template<typename T = void> \
-funcd \
-{ \
-    static_assert(fyx::simd::detail::dependent_false<T>::value, \
-        "There is no suitable instruction combination to achieve this function: " #funcd \
-        ". because determining the bit width of a multiplication accumulator without knowing its purpose is reckless"); \
+#define DEF_NOSUITABLE_IMPLEMENT__HMUL(function_name)                                                                       \
+template<typename T = void>                                                                                                 \
+function_name                                                                                                               \
+{                                                                                                                           \
+    static_assert(fyx::simd::detail::dependent_false<T>::value,                                                             \
+        "There is no suitable instruction combination to achieve this function: " #function_name                            \
+        ". because determining the bit width of a multiplication accumulator without knowing its purpose is reckless");     \
 }
     DEF_NOSUITABLE_IMPLEMENT__HMUL(std::uint64_t hmul(uint8x16 input))
     DEF_NOSUITABLE_IMPLEMENT__HMUL(std::uint64_t hmul(uint16x8 input))
