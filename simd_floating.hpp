@@ -2085,7 +2085,7 @@ namespace fyx::simd
         }
 
         template<typename simd_type>
-        simd_type powF64_fexponent_soft_simulation(simd_type base, simd_type exponent)
+        FOYE_SIMD_INTRINSIC simd_type powF64_fexponent_soft_simulation(simd_type base, simd_type exponent)
         {
             const simd_type zero = load_brocast<simd_type>(0.0);
             const simd_type one = load_brocast<simd_type>(1.0);
@@ -2278,7 +2278,7 @@ namespace fyx::simd
     namespace detail
     {
         template<typename simd_type>
-        simd_type logbF32_fexponent_soft_simulation(simd_type input)
+        FOYE_SIMD_INTRINSIC simd_type logbF32_fexponent_soft_simulation(simd_type input)
         {
             using sint_simd_t = basic_simd<detail::integral_t<
                 simd_type::scalar_bit_width, true>, simd_type::bit_width>;
@@ -2335,7 +2335,7 @@ namespace fyx::simd
         }
 
         template<typename simd_type>
-        simd_type logbF64_fexponent_soft_simulation(simd_type input)
+        FOYE_SIMD_INTRINSIC simd_type logbF64_fexponent_soft_simulation(simd_type input)
         {
             using sint_simd_t = basic_simd<detail::integral_t<
                 simd_type::scalar_bit_width, true>, simd_type::bit_width>;
@@ -2433,7 +2433,7 @@ namespace fyx::simd
         constexpr int SHIFT_29 = 29;
 
         template<typename simd_type>
-        simd_type sin_soft_simulation(simd_type input)
+        FOYE_SIMD_INTRINSIC simd_type sin_soft_simulation(simd_type input)
         {
             using sint_simd_t = basic_simd<detail::integral_t<
                 simd_type::scalar_bit_width, true>, simd_type::bit_width>;
@@ -2505,7 +2505,7 @@ namespace fyx::simd
         }
 
         template<typename simd_type>
-        simd_type cos_soft_simulation(simd_type input)
+        FOYE_SIMD_INTRINSIC simd_type cos_soft_simulation(simd_type input)
         {
             using sint_simd_t = basic_simd<detail::integral_t<
                 simd_type::scalar_bit_width, true>, simd_type::bit_width>;
@@ -2674,7 +2674,7 @@ namespace fyx::simd
     namespace detail
     {
         template<typename simd_type>
-        simd_type asinF32_soft_simulation(simd_type input)
+        FOYE_SIMD_INTRINSIC simd_type asinF32_soft_simulation(simd_type input)
         {
             using sint_simd_t = basic_simd<detail::integral_t<
                 simd_type::scalar_bit_width, true>, simd_type::bit_width>;
@@ -2765,7 +2765,7 @@ namespace fyx::simd
     namespace detail
     {
         template<typename simd_type>
-        simd_type acosF32_soft_simulation(simd_type input)
+        FOYE_SIMD_INTRINSIC simd_type acosF32_soft_simulation(simd_type input)
         {
             using sint_simd_t = basic_simd<detail::integral_t<
                 simd_type::scalar_bit_width, true>, simd_type::bit_width>;
@@ -2838,7 +2838,7 @@ namespace fyx::simd
     namespace detail
     {
         template<typename simd_type>
-        simd_type atanF32_soft_simulation(simd_type input)
+        FOYE_SIMD_INTRINSIC simd_type atanF32_soft_simulation(simd_type input)
         {
             using sint_simd_t = basic_simd<detail::integral_t<
                 simd_type::scalar_bit_width, true>, simd_type::bit_width>;
@@ -2890,7 +2890,7 @@ namespace fyx::simd
         }
 
         template<typename simd_type>
-        simd_type atanF64_soft_simulation(simd_type input)
+        FOYE_SIMD_INTRINSIC simd_type atanF64_soft_simulation(simd_type input)
         {
             using sint_simd_t = basic_simd<detail::integral_t<
                 simd_type::scalar_bit_width, true>, simd_type::bit_width>;
@@ -3007,7 +3007,7 @@ namespace fyx::simd
     namespace detail
     {
         template<typename simd_type>
-        void modf_impl(simd_type input,
+        FOYE_SIMD_INTRINSIC void modf_impl(simd_type input,
             basic_simd<detail::integral_t<simd_type::scalar_bit_width, true>, simd_type::bit_width>* integer_part, 
             simd_type* decimal_part)
         {
@@ -3065,6 +3065,54 @@ namespace fyx::simd
 
         *integer_part = merge(narrowing<sint16x8>(integer_part_low), narrowing<sint16x8>(integer_part_high));
         *decimal_part = merge(narrowing<bfloat16x8>(decimal_part_low), narrowing<bfloat16x8>(decimal_part_high));
+    }
+#endif
+
+    namespace detail
+    {
+        template<typename simd_type>
+        FOYE_SIMD_INTRINSIC simd_type fdim_impl(simd_type x, simd_type y)
+        {
+            simd_type diff = minus(x, y);
+            simd_type zero = allzero_bits_as<simd_type>();
+            return max(diff, zero);
+        }
+    }
+
+    float32x8 fdim(float32x8 x, float32x8 y) { return detail::fdim_impl(x, y); }
+    float64x4 fdim(float64x4 x, float64x4 y) { return detail::fdim_impl(x, y); }
+    float32x4 fdim(float32x4 x, float32x4 y) { return detail::fdim_impl(x, y); }
+    float64x2 fdim(float64x2 x, float64x2 y) { return detail::fdim_impl(x, y); }
+#if defined(_FOYE_SIMD_HAS_FP16_)
+    float16x8 fdim(float16x8 x, float16x8 y)
+    {
+        float32x8 x32 = expand<float32x8>(x);
+        float32x8 y32 = expand<float32x8>(y);
+        float32x8 result32 = fdim(x32, y32);
+        return narrowing<float16x8>(result32);
+    }
+
+    float16x16 fdim(float16x16 x, float16x16 y)
+    {
+        float32x8 result_low = fdim(expand_low<float32x8>(x), expand_low<float32x8>(y));
+        float32x8 result_high = fdim(expand_high<float32x8>(x), expand_high<float32x8>(y));
+        return merge(narrowing<float16x8>(result_low), narrowing<float16x8>(result_high));
+    }
+#endif
+#if defined(_FOYE_SIMD_HAS_BF16_)
+    bfloat16x8 fdim(bfloat16x8 x, bfloat16x8 y)
+    {
+        float32x8 x32 = expand<float32x8>(x);
+        float32x8 y32 = expand<float32x8>(y);
+        float32x8 result32 = fdim(x32, y32);
+        return narrowing<bfloat16x8>(result32);
+    }
+
+    bfloat16x16 fdim(bfloat16x16 x, bfloat16x16 y)
+    {
+        float32x8 result_low = fdim(expand_low<float32x8>(x), expand_low<float32x8>(y));
+        float32x8 result_high = fdim(expand_high<float32x8>(x), expand_high<float32x8>(y));
+        return merge(narrowing<bfloat16x8>(result_low), narrowing<bfloat16x8>(result_high));
     }
 #endif
 }
