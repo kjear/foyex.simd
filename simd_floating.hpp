@@ -3115,6 +3115,114 @@ namespace fyx::simd
         return merge(narrowing<bfloat16x8>(result_low), narrowing<bfloat16x8>(result_high));
     }
 #endif
+
+    namespace detail
+    {
+        double scalbn_scalar_verison_temp_impl(double x, int n)
+        {
+            if (x == 0.0 || n == 0)
+            {
+                return x;
+            }
+
+            if (!std::isfinite(x))
+            {
+                return x;
+            }
+
+            if (std::isnan(x))
+            {
+                return x;
+            }
+
+            std::uint64_t bits = std::bit_cast<std::uint64_t>(x);
+
+            const std::uint64_t sign_mask = 0x8000000000000000ULL;
+            const std::uint64_t exponent_mask = 0x7FF0000000000000ULL;
+            const std::uint64_t significand_mask = 0x000FFFFFFFFFFFFFULL;
+
+            std::uint64_t sign = bits & sign_mask;
+            int exponent = static_cast<int>((bits & exponent_mask) >> 52);
+            std::uint64_t significand = bits & significand_mask;
+
+            if (exponent == 0)
+            {
+                if (significand == 0)
+                {
+                    return x;
+                }
+
+                int shift = count_leading_zeros(significand) - 11;
+                significand <<= shift;
+                exponent = 1 - shift;
+            }
+            else if (exponent == 0x7FF)
+            {
+                return x;
+            }
+            else
+            {
+                exponent -= 1023;
+            }
+
+            int new_exponent = exponent + n;
+            if (new_exponent >= 1024)
+            {
+                return std::copysign(std::numeric_limits<double>::infinity(), x);
+            }
+            else if (new_exponent <= -1023)
+            {
+                if (new_exponent <= -1074)
+                {
+                    return std::copysign(0.0, x);
+                }
+
+                int denorm_shift = -new_exponent - 1022;
+                std::uint64_t result_bits = sign | (significand >> denorm_shift);
+                double result;
+                std::memcpy(&result, &result_bits, sizeof(double));
+                return result;
+            }
+            else
+            {
+                std::uint64_t new_bits = sign
+                    | (static_cast<std::uint64_t>(new_exponent + 1023) << 52)
+                    | significand;
+                return std::bit_cast<double>(new_bits);
+            }
+        }
+
+        template<typename simd_type>
+        simd_type scalbn_dispatch(simd_type x, basic_simd<detail::integral_t<
+            simd_type::scalar_bit_width, true>, simd_type::bit_width> n)
+        {
+            using sint_simd_t = basic_simd<detail::integral_t<
+                simd_type::scalar_bit_width, true>, simd_type::bit_width>;
+
+            using xscalar_type = typename simd_type::scalar_t;
+            using nscalar_type = sint_simd_t::scalar_t;
+            using xvector_type = typename simd_type::vector_t;
+            using nvector_type = sint_simd_t::vector_t;
+
+            alignas(alignof(xvector_type)) xscalar_type x_temparray[simd_type::lane_width];
+            alignas(alignof(xvector_type)) nscalar_type n_temparray[sint_simd_t::lane_width];
+            alignas(alignof(xvector_type)) xscalar_type res_temparray[simd_type::lane_width];
+
+            store_aligned(x, x_temparray);
+            store_aligned(n, res_temparray);
+
+            for (int i = 0; i < simd_type::lane_width; ++i)
+            {
+                res_temparray[i] = detail::scalbn_scalar_verison_temp_impl(
+                    x_temparray[i], res_temparray[i]);
+            }
+
+            return load_aligned<typename simd_type>(res_temparray);
+        }
+    }
+
+    float64x4 scalbn(float64x4 x, sint64x4 n) { return detail::scalbn_dispatch(x, n); }
+    float64x2 scalbn(float64x2 x, sint64x2 n) { return detail::scalbn_dispatch(x, n); }
 }
 
 #endif
