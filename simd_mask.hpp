@@ -10,31 +10,31 @@
 
 namespace fyx::simd
 {
-    template<typename simd_type> requires(fyx::simd::is_basic_simd_v<simd_type>)
+    template<typename simd_type> requires(is_basic_simd_v<simd_type>)
     mask_from_simd_t<simd_type> where_between(simd_type value, simd_type low, simd_type high)
     {
-        const simd_type clamped = fyx::simd::max(low, fyx::simd::min(value, high));
-        return fyx::simd::equal(value, clamped);
+        const simd_type clamped = max(low, min(value, high));
+        return equal(value, clamped);
     }
     
-    template<typename simd_type> requires(fyx::simd::is_basic_simd_v<simd_type>)
+    template<typename simd_type> requires(is_basic_simd_v<simd_type>)
     mask_from_simd_t<simd_type> where_positive(simd_type value)
     {
-        const simd_type zero = fyx::simd::allzero_bits_as<simd_type>();
-        return fyx::simd::greater(value, zero);
+        const simd_type zero = allzero_bits_as<simd_type>();
+        return greater(value, zero);
     }
 
-    template<typename simd_type> requires(fyx::simd::is_basic_simd_v<simd_type>)
+    template<typename simd_type> requires(is_basic_simd_v<simd_type>)
     mask_from_simd_t<simd_type> where_negative(simd_type value)
     {
         if constexpr (std::is_unsigned_v<typename simd_type::scalar_t>)
         {
-            return mask_from_simd_t<simd_type>{ fyx::simd::allzero_bits_as<simd_type>() };
+            return mask_from_simd_t<simd_type>{ allzero_bits_as<simd_type>() };
         }
         else
         {
-            const simd_type zero = fyx::simd::allzero_bits_as<simd_type>();
-            return fyx::simd::greater(zero, value);
+            const simd_type zero = allzero_bits_as<simd_type>();
+            return greater(zero, value);
         }
     }
 
@@ -51,8 +51,7 @@ namespace fyx::simd
     float32x4 shuffle(float32x4 input_0, float32x4 input_1)
     {
         return float32x4{ _mm_shuffle_ps(input_0.data, input_1.data,
-            (((input0_first) << 6) | ((input0_second) << 4) |
-                ((input1_first) << 2) | ((input1_second)))) };
+            (((input0_first) << 6) | ((input0_second) << 4) | ((input1_first) << 2) | ((input1_second)))) };
     }
 
     template<int input_selected, int input1_selected>
@@ -465,6 +464,7 @@ namespace fyx::simd
         }
     }
 
+
     template<typename simd_type, int index_scale = sizeof(typename simd_type::scalar_t)>
     requires((simd_type::scalar_bit_width == 32) && is_256bits_simd_v<simd_type>)
     simd_type load_gather_32i32o(sint32x8 indices, void* mem_addr)
@@ -473,50 +473,6 @@ namespace fyx::simd
             indices.data, index_scale);
         return simd_type{ detail::basic_reinterpret<typename simd_type::vector_t>(float_result) };
     }
-
-    namespace detail
-    {
-        static const std::array<std::array<std::uint8_t, 16>, 65536>& bytewise_forward_lut = []() -> auto& 
-            {
-                static auto* lut = new std::array<std::array<std::uint8_t, 16>, 65536>;
-
-                for (int bitmask = 0; bitmask < 65536; bitmask++)
-                {
-                    std::array<std::uint8_t, 16> control{};
-                    int j = 0;
-
-                    for (int i = 0; i < 16; i++)
-                    {
-                        if (bitmask & (1 << i))
-                        {
-                            control[j++] = static_cast<std::uint8_t>(i);
-                        }
-                    }
-
-                    for (; j < 16; j++)
-                    {
-                        control[j] = 0;
-                    }
-
-                    (*lut)[bitmask] = control;
-                }
-
-                return *lut;
-            }();
-    }
-
-    template<typename simd_type>
-    requires(is_128bits_simd_v<simd_type>&& simd_type::scalar_bit_width == 8)
-    simd_type bytewise_forward(simd_type source, mask_8x16 select_mask)
-    {
-        __m128i mask = _mm_cmpeq_epi8(select_mask.data, _mm_setzero_si128());
-        int bitmask = _mm_movemask_epi8(_mm_xor_si128(mask, _mm_set1_epi8(0xFF)));
-
-        const std::uint8_t* lut_addr = detail::bytewise_forward_lut[bitmask].data();
-        __m128i shuffle_mask = _mm_load_si128(reinterpret_cast<const __m128i*>(lut_addr));
-        return simd_type{ _mm_shuffle_epi8(source.data, shuffle_mask) };
-    }
-
 
 
     uint8x16 reverse(uint8x16 input)
@@ -616,14 +572,40 @@ namespace fyx::simd
     bfloat16x16 reverse(bfloat16x16 input) { return bfloat16x16{ fyx::simd::reverse(uint16x16{input.data}) }; }
 #endif
 
-    uint8x16 swap_halves(uint8x16 input) { return uint8x16{ _mm_or_si128(_mm_slli_si128(input.data, 8), _mm_srli_si128(input.data, 8)) }; }
-    uint16x8 swap_halves(uint16x8 input) { return uint16x8{ _mm_or_si128(_mm_slli_si128(input.data, 8), _mm_srli_si128(input.data, 8)) }; }
-    uint32x4 swap_halves(uint32x4 input) { return uint32x4{ _mm_or_si128(_mm_slli_si128(input.data, 8), _mm_srli_si128(input.data, 8)) }; }
-    uint64x2 swap_halves(uint64x2 input) { return uint64x2{ _mm_or_si128(_mm_slli_si128(input.data, 8), _mm_srli_si128(input.data, 8)) }; }
-    sint8x16 swap_halves(sint8x16 input) { return sint8x16{ _mm_or_si128(_mm_slli_si128(input.data, 8), _mm_srli_si128(input.data, 8)) }; }
-    sint16x8 swap_halves(sint16x8 input) { return sint16x8{ _mm_or_si128(_mm_slli_si128(input.data, 8), _mm_srli_si128(input.data, 8)) }; }
-    sint32x4 swap_halves(sint32x4 input) { return sint32x4{ _mm_or_si128(_mm_slli_si128(input.data, 8), _mm_srli_si128(input.data, 8)) }; }
-    sint64x2 swap_halves(sint64x2 input) { return sint64x2{ _mm_or_si128(_mm_slli_si128(input.data, 8), _mm_srli_si128(input.data, 8)) }; }
+
+    namespace detail
+    {
+        template<bool first_low, bool second_low, typename intrin_type>
+            requires(is_mm256_vector_type_v<intrin_type>)
+        intrin_type concat_halves_impl(intrin_type a, intrin_type b)
+        {
+            constexpr int imm8 = (second_low ? 0x20 : 0x30) | (first_low ? 0x00 : 0x01);
+            __m256i result = _mm256_permute2x128_si256(
+                basic_reinterpret<__m256i>(a), basic_reinterpret<__m256i>(b), imm8);
+            return basic_reinterpret<intrin_type>(result);
+        }
+    }
+
+    template<bool first_low, bool second_low> uint8x32 concat_halves(uint8x32 src_0, uint8x32 src_1) { return detail::concat_halves_impl<first_low, second_low>(src_0, src_1); }
+    template<bool first_low, bool second_low> uint16x16 concat_halves(uint16x16 src_0, uint16x16 src_1) { return detail::concat_halves_impl<first_low, second_low>(src_0, src_1); }
+    template<bool first_low, bool second_low> uint32x8 concat_halves(uint32x8 src_0, uint32x8 src_1) { return detail::concat_halves_impl<first_low, second_low>(src_0, src_1); }
+    template<bool first_low, bool second_low> uint64x4 concat_halves(uint64x4 src_0, uint64x4 src_1) { return detail::concat_halves_impl<first_low, second_low>(src_0, src_1); }
+    template<bool first_low, bool second_low> sint8x32 concat_halves(sint8x32 src_0, sint8x32 src_1) { return detail::concat_halves_impl<first_low, second_low>(src_0, src_1); }
+    template<bool first_low, bool second_low> sint16x16 concat_halves(sint16x16 src_0, sint16x16 src_1) { return detail::concat_halves_impl<first_low, second_low>(src_0, src_1); }
+    template<bool first_low, bool second_low> sint32x8 concat_halves(sint32x8 src_0, sint32x8 src_1) { return detail::concat_halves_impl<first_low, second_low>(src_0, src_1); }
+    template<bool first_low, bool second_low> sint64x4 concat_halves(sint64x4 src_0, sint64x4 src_1) { return detail::concat_halves_impl<first_low, second_low>(src_0, src_1); }
+    template<bool first_low, bool second_low> float32x8 concat_halves(float32x8 src_0, float32x8 src_1) { return detail::concat_halves_impl<first_low, second_low>(src_0, src_1); }
+    template<bool first_low, bool second_low> float64x4 concat_halves(float64x4 src_0, float64x4 src_1) { return detail::concat_halves_impl<first_low, second_low>(src_0, src_1); }
+
+
+    uint8x16 swap_halves(uint8x16 input) { return uint8x16{ _mm_shuffle_epi32(input.data, 0b01001110) }; }
+    uint16x8 swap_halves(uint16x8 input) { return uint16x8{ _mm_shuffle_epi32(input.data, 0b01001110) }; }
+    uint32x4 swap_halves(uint32x4 input) { return uint32x4{ _mm_shuffle_epi32(input.data, 0b01001110) }; }
+    uint64x2 swap_halves(uint64x2 input) { return uint64x2{ _mm_shuffle_epi32(input.data, 0b01001110) }; }
+    sint8x16 swap_halves(sint8x16 input) { return sint8x16{ _mm_shuffle_epi32(input.data, 0b01001110) }; }
+    sint16x8 swap_halves(sint16x8 input) { return sint16x8{ _mm_shuffle_epi32(input.data, 0b01001110) }; }
+    sint32x4 swap_halves(sint32x4 input) { return sint32x4{ _mm_shuffle_epi32(input.data, 0b01001110) }; }
+    sint64x2 swap_halves(sint64x2 input) { return sint64x2{ _mm_shuffle_epi32(input.data, 0b01001110) }; }
     float32x4 swap_halves(float32x4 input) { return float32x4{ _mm_shuffle_ps(input.data, input.data, _MM_SHUFFLE(1, 0, 3, 2)) }; }
     float64x2 swap_halves(float64x2 input) { return float64x2{ _mm_shuffle_pd(input.data, input.data, 0b01) }; }
     uint8x32 swap_halves(uint8x32 input) { return uint8x32{ detail::merge(detail::split_high(input.data), detail::split_low(input.data)) }; }
