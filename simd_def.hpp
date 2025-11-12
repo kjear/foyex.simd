@@ -429,6 +429,10 @@ namespace fyx::simd
     template<typename simd_type>
     inline constexpr bool is_simd_or_mask_v = simd::is_basic_mask_v<simd_type> || simd::is_basic_simd_v<simd_type>;
 
+    template<typename T> concept basic_simd_type = is_basic_simd_v<T>;
+    template<typename T> concept basic_mask_type = is_basic_mask_v<T>;
+    template<typename T> concept basic_simd_or_mask_type = is_simd_or_mask_v<T>;
+
     template<typename... types> constexpr bool is_any_basic_simd_v = (is_basic_simd_v<types> || ...);
     template<typename... types> constexpr bool is_any_basic_mask_v = (is_basic_mask_v<types> || ...);
     template<typename... types> constexpr bool is_any_128bit_basic_simd_v = (is_128bits_simd_v<types> || ...);
@@ -715,10 +719,11 @@ namespace fyx::simd
     template<typename simd_type>
     simd_type randombytes_as()
     {
+        using stype = typename simd_type::scalar_t;
         constexpr std::size_t batch_count = simd_type::bit_width / 64;
         alignas(alignof(typename simd_type::vector_t)) union
         {
-            typename simd_type::scalar_t scalar_[simd_type::lane_width];
+            stype scalar_[simd_type::lane_width];
             unsigned long long u64_[batch_count];
         } tempbuffer{};
 
@@ -732,38 +737,6 @@ namespace fyx::simd
         }
 
         return load_aligned<simd_type>(tempbuffer.scalar_);
-    }
-
-    template<typename simd_type> requires(is_basic_simd_v<simd_type>)
-    std::string format(simd_type source)
-    {
-        constexpr std::size_t lane_width = simd_type::lane_width;
-        return [&]<std::size_t... Indices>(std::index_sequence<Indices...>)
-        {
-            using extract_type = typename simd_type::scalar_t;
-            using format_type = std::conditional_t<is_half_basic_simd_v<simd_type>, float, extract_type>;
-            std::string str{ '[' };
-            ((str.append(std::format("{}{}",
-                static_cast<format_type>(extract_single_from<Indices>(source)),
-                (Indices == lane_width - 1) ? "]" : ", "))), ...);
-            return str;
-        }(std::make_index_sequence<lane_width>{});
-    }
-
-    template<typename simd_type> requires(is_basic_mask_v<simd_type>)
-    std::string format(simd_type source, std::string_view trueval = "1", std::string_view falseval = "0")
-    {
-        constexpr std::size_t lane_width = simd_type::lane_width;
-        return [&]<std::size_t... Indices>(std::index_sequence<Indices...>)
-        {
-            std::string str{ '[' };
-            ((str.append(std::format("{}{}",
-                (extract_single_from_mask<Indices>(source)
-                    ? trueval
-                    : falseval),
-                (Indices == lane_width - 1) ? "]" : ", "))), ...);
-            return str;
-        }(std::make_index_sequence<lane_width>{});
     }
 }
 
