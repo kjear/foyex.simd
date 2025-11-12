@@ -1029,20 +1029,6 @@ namespace fyx::simd::detail
         }
     }
 
-    inline void v_transpose4x4(
-        const __m128i& a0, const __m128i& a1, const __m128i& a2, const __m128i& a3,
-        __m128i& b0, __m128i& b1, __m128i& b2, __m128i& b3)
-    {
-        __m128i t0 = (_mm_unpacklo_epi32(a0, a1));
-        __m128i t1 = (_mm_unpacklo_epi32(a2, a3));
-        __m128i t2 = (_mm_unpackhi_epi32(a0, a1));
-        __m128i t3 = (_mm_unpackhi_epi32(a2, a3));
-        b0 = (_mm_unpacklo_epi64(t0, t1));
-        b1 = (_mm_unpackhi_epi64(t0, t1));
-        b2 = (_mm_unpacklo_epi64(t2, t3));
-        b3 = (_mm_unpackhi_epi64(t2, t3));
-    }
-
     template<typename simd_type, fyx::simd::detail::interleave_store_mode mode>
         requires((sizeof(typename simd_type::scalar_t) == sizeof(std::uint32_t))
     && fyx::simd::is_128bits_simd_v<simd_type>)
