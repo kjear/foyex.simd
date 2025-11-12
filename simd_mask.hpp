@@ -608,23 +608,24 @@ namespace fyx::simd
     sint64x2 swap_halves(sint64x2 input) { return sint64x2{ _mm_shuffle_epi32(input.data, 0b01001110) }; }
     float32x4 swap_halves(float32x4 input) { return float32x4{ _mm_shuffle_ps(input.data, input.data, _MM_SHUFFLE(1, 0, 3, 2)) }; }
     float64x2 swap_halves(float64x2 input) { return float64x2{ _mm_shuffle_pd(input.data, input.data, 0b01) }; }
-    uint8x32 swap_halves(uint8x32 input) { return uint8x32{ detail::merge(detail::split_high(input.data), detail::split_low(input.data)) }; }
-    uint16x16 swap_halves(uint16x16 input) { return uint16x16{ detail::merge(detail::split_high(input.data), detail::split_low(input.data)) }; }
-    uint32x8 swap_halves(uint32x8 input) { return uint32x8{ detail::merge(detail::split_high(input.data), detail::split_low(input.data)) }; }
-    uint64x4 swap_halves(uint64x4 input) { return uint64x4{ detail::merge(detail::split_high(input.data), detail::split_low(input.data)) }; }
-    sint8x32 swap_halves(sint8x32 input) { return sint8x32{ detail::merge(detail::split_high(input.data), detail::split_low(input.data)) }; }
-    sint16x16 swap_halves(sint16x16 input) { return sint16x16{ detail::merge(detail::split_high(input.data), detail::split_low(input.data)) }; }
-    sint32x8 swap_halves(sint32x8 input) { return sint32x8{ detail::merge(detail::split_high(input.data), detail::split_low(input.data)) }; }
-    sint64x4 swap_halves(sint64x4 input) { return sint64x4{ detail::merge(detail::split_high(input.data), detail::split_low(input.data)) }; }
-    float32x8 swap_halves(float32x8 input) { return float32x8{ detail::merge(detail::split_high(input.data), detail::split_low(input.data)) }; }
-    float64x4 swap_halves(float64x4 input) { return float64x4{ detail::merge(detail::split_high(input.data), detail::split_low(input.data)) }; }
+
+    uint8x32 swap_halves(uint8x32 input) { return uint8x32{ detail::concat_halves_impl<false, true>(input.data, input.data) }; }
+    uint16x16 swap_halves(uint16x16 input) { return uint16x16{ detail::concat_halves_impl<false, true>(input.data, input.data) }; }
+    uint32x8 swap_halves(uint32x8 input) { return uint32x8{ detail::concat_halves_impl<false, true>(input.data, input.data) }; }
+    uint64x4 swap_halves(uint64x4 input) { return uint64x4{ detail::concat_halves_impl<false, true>(input.data, input.data) }; }
+    sint8x32 swap_halves(sint8x32 input) { return sint8x32{ detail::concat_halves_impl<false, true>(input.data, input.data) }; }
+    sint16x16 swap_halves(sint16x16 input) { return sint16x16{ detail::concat_halves_impl<false, true>(input.data, input.data) }; }
+    sint32x8 swap_halves(sint32x8 input) { return sint32x8{ detail::concat_halves_impl<false, true>(input.data, input.data) }; }
+    sint64x4 swap_halves(sint64x4 input) { return sint64x4{ detail::concat_halves_impl<false, true>(input.data, input.data) }; }
+    float32x8 swap_halves(float32x8 input) { return float32x8{ detail::concat_halves_impl<false, true>(input.data, input.data) }; }
+    float64x4 swap_halves(float64x4 input) { return float64x4{ detail::concat_halves_impl<false, true>(input.data, input.data) }; }
 #if defined(_FOYE_SIMD_HAS_FP16_)
-    float16x8 swap_halves(float16x8 input) { return float16x8{ fyx::simd::swap_halves(uint16x8{input.data}) }; }
-    float16x16 swap_halves(float16x16 input) { return float16x16{ fyx::simd::swap_halves(uint16x16{input.data}) }; }
+    float16x8 swap_halves(float16x8 input) { return float16x8{ _mm_shuffle_epi32(input.data, 0b01001110) }; }
+    float16x16 swap_halves(float16x16 input) { return float16x16{ detail::concat_halves_impl<false, true>(input.data, input.data) }; }
 #endif
 #if defined(_FOYE_SIMD_HAS_FP16_)
-    bfloat16x8 swap_halves(bfloat16x8 input) { return bfloat16x8{ fyx::simd::swap_halves(uint16x8{input.data}) }; }
-    bfloat16x16 swap_halves(bfloat16x16 input) { return bfloat16x16{ fyx::simd::swap_halves(uint16x16{input.data}) }; }
+    bfloat16x8 swap_halves(bfloat16x8 input) { return bfloat16x8{ _mm_shuffle_epi32(input.data, 0b01001110) }; }
+    bfloat16x16 swap_halves(bfloat16x16 input) { return bfloat16x16{ detail::concat_halves_impl<false, true>(input.data, input.data) }; }
 #endif
 }
 
