@@ -25,6 +25,7 @@
 // #define FOYE_SIMD_ENABLE_SVML_ASIN
 // #define FOYE_SIMD_ENABLE_SVML_ACOS
 // #define FOYE_SIMD_ENABLE_SVML_ATAN
+// #define FOYE_SIMD_ENABLE_SVML_INVSQRT
 
 #define FOYE_SIMD_ENABLE_INTERLEAVE_CONCAT_256BLH_EMULATED
 #define FOYE_SIMD_ENABLE_SHIFT_EMULATED
@@ -51,8 +52,42 @@
 #include "simd_cvt.hpp"
 #pragma warning(pop)
 
+#include <random>
+
 namespace fyx::simd
 {
+    template<typename simd_type> requires(is_basic_simd_v<simd_type>)
+    std::string format(simd_type source)
+    {
+        constexpr std::size_t lane_width = simd_type::lane_width;
+        return [&]<std::size_t... Indices>(std::index_sequence<Indices...>)
+        {
+            using extract_type = typename simd_type::scalar_t;
+            using format_type = std::conditional_t<is_half_basic_simd_v<simd_type>, float, extract_type>;
+            std::string str{ '[' };
+            ((str.append(std::format("{}{}",
+                static_cast<format_type>(extract_single_from<Indices>(source)),
+                (Indices == lane_width - 1) ? "]" : ", "))), ...);
+            return str;
+        }(std::make_index_sequence<lane_width>{});
+    }
+
+    template<typename simd_type> requires(is_basic_mask_v<simd_type>)
+    std::string format(simd_type source)
+    {
+        constexpr std::size_t lane_width = simd_type::lane_width;
+        return [&]<std::size_t... Indices>(std::index_sequence<Indices...>)
+        {
+            std::string str{ '[' };
+            ((str.append(std::format("{}{}",
+                (extract_single_from_mask<Indices>(source)
+                    ? '1'
+                    : '0'),
+                (Indices == lane_width - 1) ? "]" : ", "))), ...);
+            return str;
+        }(std::make_index_sequence<lane_width>{});
+    }
+
     template<typename simd_type>
     requires(is_basic_mask_v<simd_type> || is_basic_simd_v<simd_type>)
     void print(simd_type source)
